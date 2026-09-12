@@ -1,0 +1,28 @@
+{
+  "name": "na-grelha-alan-xavier",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "npm run imagens && tsc -p tsconfig.app.json && vite build",
+    "preview": "vite preview",
+    "imagens": "node scripts/imagens.mjs",
+    "type-check": "tsc -p tsconfig.app.json --noEmit",
+    "verificar": "vite build --ssr scripts/render-check.tsx --outDir dist-check --logLevel warn && node dist-check/render-check.js"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.1.14",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "@vitejs/plugin-react": "^5.0.4",
+    "sharp": "^0.34.4",
+    "tailwindcss": "^4.1.14",
+    "typescript": "^5.9.3",
+    "vite": "^7.1.9"
+  }
+}

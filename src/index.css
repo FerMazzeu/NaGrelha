@@ -1,0 +1,206 @@
+@import 'tailwindcss';
+
+/*
+  Tailwind v4.
+
+  Classe destinada a ser reaproveitada por @apply nasce em @utility, nunca em
+  @layer components: no v4 o @apply só enxerga utilitário, e classe declarada
+  em @layer components funciona no HTML mas quebra o build quando outra classe
+  tenta aplicá-la.
+*/
+
+@theme {
+  /* A paleta sai da própria marca: o vermelho é o da chama da logo. */
+  --color-carvao: #12100e;
+  --color-carvao-2: #1a1512;
+  --color-carvao-3: #221b16;
+  --color-borda: #302419;
+  --color-brasa: #c4261d;
+  --color-brasa-clara: #e0402f;
+  --color-ember: #e8641e;
+  --color-dourado: #e3a53f;
+  --color-creme: #f7f2ea;
+  --color-fumaca: #a89a8a;
+  --color-verde-marca: #1f7a3d;
+
+  --font-display: 'Anton', 'Arial Narrow', sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+
+  --radius-cartao: 1.25rem;
+}
+
+@layer base {
+  html {
+    scroll-behavior: smooth;
+    background-color: var(--color-carvao);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+
+  body {
+    background-color: var(--color-carvao);
+    color: var(--color-creme);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* âncora não pode parar debaixo do cabeçalho fixo */
+  section[id] {
+    scroll-margin-top: 5rem;
+  }
+
+  ::selection {
+    background-color: var(--color-brasa);
+    color: var(--color-creme);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-dourado);
+    outline-offset: 3px;
+  }
+}
+
+@utility area {
+  width: 100%;
+  max-width: 78rem;
+  margin-inline: auto;
+  padding-inline: 1.25rem;
+
+  @media (width >= 48rem) {
+    padding-inline: 2rem;
+  }
+
+  /* Em monitor grande a página parava de crescer em 1280 e o conteúdo virava
+     uma coluna estreita com muita sobra dos lados. */
+  @media (width >= 100rem) {
+    max-width: 88rem;
+    padding-inline: 3rem;
+  }
+}
+
+@utility secao {
+  padding-block: 4.5rem;
+
+  @media (width >= 48rem) {
+    padding-block: 7rem;
+  }
+}
+
+/* o "olho" acima do título: categoria da seção */
+@utility selo {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--color-dourado);
+}
+
+@utility selo-risco {
+  &::before {
+    content: '';
+    width: 1.75rem;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--color-dourado));
+  }
+}
+
+@utility titulo {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 0.95;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+}
+
+@utility titulo-secao {
+  font-family: var(--font-display);
+  font-weight: 400;
+  line-height: 0.98;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  text-wrap: balance;
+  font-size: clamp(2rem, 5.5vw, 3.4rem);
+}
+
+@utility corpo {
+  color: var(--color-fumaca);
+  line-height: 1.75;
+  text-wrap: pretty;
+}
+
+@utility cartao {
+  background-color: var(--color-carvao-2);
+  border: 1px solid var(--color-borda);
+  border-radius: var(--radius-cartao);
+}
+
+@utility botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6rem;
+  min-height: 3.25rem;
+  padding-inline: 1.6rem;
+  border-radius: 999px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1;
+  text-align: center;
+  transition: transform 150ms ease, background-color 150ms ease, border-color 150ms ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+}
+
+@utility botao-brasa {
+  background-color: var(--color-brasa);
+  color: var(--color-creme);
+  box-shadow: 0 10px 30px -12px rgb(196 38 29 / 0.8);
+
+  &:hover {
+    background-color: var(--color-brasa-clara);
+  }
+}
+
+@utility botao-fantasma {
+  border: 1px solid color-mix(in srgb, var(--color-creme) 28%, transparent);
+  color: var(--color-creme);
+
+  &:hover {
+    border-color: var(--color-dourado);
+    color: var(--color-dourado);
+  }
+}
+
+/* textura fina de brasa, para faixa escura não ficar chapada */
+@utility brilho-brasa {
+  background-image:
+    radial-gradient(60% 80% at 15% 0%, rgb(232 100 30 / 0.16), transparent 70%),
+    radial-gradient(50% 70% at 90% 100%, rgb(196 38 29 / 0.14), transparent 70%);
+}
+
+@utility revelar {
+  opacity: 0;
+  transform: translateY(18px);
+  transition: opacity 700ms ease-out, transform 700ms ease-out;
+
+  &[data-visivel='sim'] {
+    opacity: 1;
+    transform: none;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+}

@@ -1,0 +1,10 @@
+node_modules
+dist
+dist-check
+dist-ssr
+.DS_Store
+*.local
+
+# Gerado por scripts/imagens.mjs a partir de fotos/. A fonte e fotos/, que
+# entra no git; src/assets e derivado e se refaz com `npm run imagens`.
+src/assets/

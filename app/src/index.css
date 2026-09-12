@@ -1,0 +1,167 @@
+@import 'tailwindcss';
+
+/*
+  Mesma paleta do site do cliente, de propósito: é a mesma empresa, e quem usa
+  este app é quem atende no WhatsApp com o site aberto do lado.
+
+  Classe reaproveitada por @apply nasce em @utility, nunca em @layer
+  components: no Tailwind v4 o @apply só enxerga utilitário.
+*/
+
+@theme {
+  --color-carvao: #12100e;
+  --color-carvao-2: #1a1512;
+  --color-carvao-3: #221b16;
+  --color-borda: #302419;
+  --color-brasa: #c4261d;
+  --color-brasa-clara: #e0402f;
+  --color-dourado: #e3a53f;
+  --color-creme: #f7f2ea;
+  --color-fumaca: #a89a8a;
+  --color-verde: #2e9e5b;
+
+  --font-display: 'Anton', 'Arial Narrow', sans-serif;
+  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+@layer base {
+  :root {
+    /* Altura da navegação fixa do rodapé. Mora aqui porque três lugares
+       precisam concordar com ela: a própria nav, o respiro do conteúdo e a
+       barra de digitação do assistente, que senão fica por cima dela. */
+    --altura-nav: 4.25rem;
+  }
+
+  html {
+    background-color: var(--color-carvao);
+    /* o app é usado no celular, no açougue, com uma mão só */
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    background-color: var(--color-carvao);
+    color: var(--color-creme);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-dourado);
+    outline-offset: 2px;
+  }
+
+  ::selection {
+    background-color: var(--color-brasa);
+    color: var(--color-creme);
+  }
+
+  /* some com a setinha do number no desktop: ela erra o toque e atrapalha */
+  input[type='number']::-webkit-inner-spin-button,
+  input[type='number']::-webkit-outer-spin-button {
+    appearance: none;
+    margin: 0;
+  }
+}
+
+@utility area {
+  width: 100%;
+  max-width: 64rem;
+  margin-inline: auto;
+  padding-inline: 1rem;
+
+  @media (width >= 48rem) {
+    padding-inline: 1.5rem;
+  }
+}
+
+@utility titulo {
+  font-family: var(--font-display);
+  font-weight: 400;
+  letter-spacing: 0.01em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+@utility cartao {
+  background-color: var(--color-carvao-2);
+  border: 1px solid var(--color-borda);
+  border-radius: 1rem;
+}
+
+@utility rotulo {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--color-fumaca);
+}
+
+@utility campo {
+  width: 100%;
+  min-height: 3rem;
+  padding-inline: 0.9rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--color-borda);
+  background-color: var(--color-carvao-3);
+  color: var(--color-creme);
+  font-size: 1rem;
+
+  &::placeholder {
+    color: color-mix(in srgb, var(--color-fumaca) 70%, transparent);
+  }
+
+  &:focus {
+    border-color: var(--color-dourado);
+  }
+}
+
+@utility botao {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  /* 44px é o mínimo para acertar com o dedo */
+  min-height: 2.9rem;
+  padding-inline: 1.1rem;
+  border-radius: 0.75rem;
+  font-weight: 600;
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: background-color 150ms ease, border-color 150ms ease, transform 120ms ease;
+
+  &:active {
+    transform: scale(0.98);
+  }
+
+  &:disabled {
+    opacity: 0.45;
+  }
+}
+
+@utility botao-brasa {
+  background-color: var(--color-brasa);
+  color: var(--color-creme);
+
+  &:hover:not(:disabled) {
+    background-color: var(--color-brasa-clara);
+  }
+}
+
+@utility botao-linha {
+  border: 1px solid var(--color-borda);
+  color: var(--color-creme);
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-dourado);
+    color: var(--color-dourado);
+  }
+}
+
+/* número grande de resultado, o que a pessoa procura na tela */
+@utility metrica {
+  font-family: var(--font-display);
+  font-size: clamp(1.5rem, 5vw, 2rem);
+  line-height: 1;
+  color: var(--color-dourado);
+}
