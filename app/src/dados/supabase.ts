@@ -1,5 +1,13 @@
 import { supabase } from '../integrations/supabase/client';
-import type { Apetite, Item, Orcamento, Situacao } from '../dominio/tipos';
+import type {
+  Apetite,
+  FaixaEtaria,
+  Item,
+  Orcamento,
+  PapelDeServico,
+  Servico,
+  Situacao,
+} from '../dominio/tipos';
 import type { Repositorio } from './repositorio';
 
 /**
@@ -23,6 +31,7 @@ type LinhaEvento = {
   adultos: number;
   criancas: number;
   apetite: Apetite;
+  duracao_horas: number;
   margem: number;
   fator_carvao: number;
   preco_carvao: number;
@@ -34,6 +43,7 @@ type LinhaItem = {
   id: string;
   item_id: string | null;
   nome: string;
+  grupo: string;
   categoria: Item['categoria'];
   unidade: Item['unidade'];
   por_pessoa: number;
@@ -51,6 +61,7 @@ function paraItem(l: LinhaItem): Item {
     // seleção referencia. Item apagado do catálogo sobrevive pelo id da linha.
     id: l.item_id ?? l.id,
     nome: l.nome,
+    grupo: l.grupo ?? '',
     categoria: l.categoria,
     unidade: l.unidade,
     porPessoa: Number(l.por_pessoa),
@@ -59,7 +70,33 @@ function paraItem(l: LinhaItem): Item {
   };
 }
 
-function montar(evento: LinhaEvento, itens: LinhaItem[], custos: LinhaCusto[]): Orcamento {
+type LinhaServico = {
+  id: string;
+  servico_id: string | null;
+  nome: string;
+  papel: PapelDeServico;
+  pessoa: string;
+  quantidade: number;
+  valor: number;
+  ordem: number;
+};
+
+type LinhaFaixa = {
+  id: string;
+  faixa_id: string | null;
+  nome: string;
+  percentual: number;
+  quantidade: number;
+  ordem: number;
+};
+
+function montar(
+  evento: LinhaEvento,
+  itens: LinhaItem[],
+  custos: LinhaCusto[],
+  servicos: LinhaServico[],
+  faixas: LinhaFaixa[],
+): Orcamento {
   const ordenados = [...itens].sort((a, b) => a.ordem - b.ordem);
   return {
     id: evento.id,
@@ -71,8 +108,28 @@ function montar(evento: LinhaEvento, itens: LinhaItem[], custos: LinhaCusto[]): 
     observacoes: evento.observacoes,
     situacao: evento.situacao,
     adultos: evento.adultos,
-    criancas: evento.criancas,
     apetite: evento.apetite,
+    duracaoHoras: Number(evento.duracao_horas ?? 5),
+    faixas: [...faixas]
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((f) => ({
+        id: f.id,
+        faixaId: f.faixa_id,
+        nome: f.nome,
+        percentual: Number(f.percentual),
+        quantidade: f.quantidade,
+      })),
+    servicos: [...servicos]
+      .sort((a, b) => a.ordem - b.ordem)
+      .map((x) => ({
+        id: x.id,
+        servicoId: x.servico_id,
+        nome: x.nome,
+        papel: x.papel,
+        pessoa: x.pessoa,
+        quantidade: Number(x.quantidade),
+        valor: Number(x.valor),
+      })),
     itens: ordenados.map(paraItem),
     selecionados: ordenados.filter((l) => l.selecionado).map((l) => l.item_id ?? l.id),
     custosExtras: custos.map((c) => ({ id: c.id, descricao: c.descricao, valor: Number(c.valor) })),
@@ -88,16 +145,26 @@ function montar(evento: LinhaEvento, itens: LinhaItem[], custos: LinhaCusto[]): 
 const ouNulo = (v: string) => (v && v.trim() ? v : null);
 
 async function carregarPartes(ids: string[]) {
-  if (!ids.length) return { itens: [] as (LinhaItem & { evento_id: string })[], custos: [] as (LinhaCusto & { evento_id: string })[] };
+  const vazio = {
+    itens: [] as (LinhaItem & { evento_id: string })[],
+    custos: [] as (LinhaCusto & { evento_id: string })[],
+    servicos: [] as (LinhaServico & { evento_id: string })[],
+    faixas: [] as (LinhaFaixa & { evento_id: string })[],
+  };
+  if (!ids.length) return vazio;
 
-  const [{ data: itens }, { data: custos }] = await Promise.all([
+  const [{ data: itens }, { data: custos }, { data: servicos }, { data: faixas }] = await Promise.all([
     supabase.from('evento_itens').select('*').in('evento_id', ids),
     supabase.from('evento_custos').select('*').in('evento_id', ids),
+    supabase.from('evento_servicos').select('*').in('evento_id', ids),
+    supabase.from('evento_faixas').select('*').in('evento_id', ids),
   ]);
 
   return {
-    itens: (itens ?? []) as (LinhaItem & { evento_id: string })[],
-    custos: (custos ?? []) as (LinhaCusto & { evento_id: string })[],
+    itens: (itens ?? []) as typeof vazio.itens,
+    custos: (custos ?? []) as typeof vazio.custos,
+    servicos: (servicos ?? []) as typeof vazio.servicos,
+    faixas: (faixas ?? []) as typeof vazio.faixas,
   };
 }
 
@@ -110,13 +177,15 @@ export const repositorioSupabase: Repositorio = {
     if (error) throw error;
 
     const linhas = (eventos ?? []) as LinhaEvento[];
-    const { itens, custos } = await carregarPartes(linhas.map((e) => e.id));
+    const { itens, custos, servicos, faixas } = await carregarPartes(linhas.map((e) => e.id));
 
     return linhas.map((e) =>
       montar(
         e,
         itens.filter((i) => i.evento_id === e.id),
         custos.filter((c) => c.evento_id === e.id),
+        servicos.filter((x) => x.evento_id === e.id),
+        faixas.filter((f) => f.evento_id === e.id),
       ),
     );
   },
@@ -124,8 +193,8 @@ export const repositorioSupabase: Repositorio = {
   async obterOrcamento(id) {
     const { data: evento } = await supabase.from('eventos').select('*').eq('id', id).maybeSingle();
     if (!evento) return null;
-    const { itens, custos } = await carregarPartes([id]);
-    return montar(evento as LinhaEvento, itens, custos);
+    const { itens, custos, servicos, faixas } = await carregarPartes([id]);
+    return montar(evento as LinhaEvento, itens, custos, servicos, faixas);
   },
 
   async salvarOrcamento(o) {
@@ -139,8 +208,10 @@ export const repositorioSupabase: Repositorio = {
       observacoes: o.observacoes,
       situacao: o.situacao,
       adultos: o.adultos,
-      criancas: o.criancas,
+      // a coluna antiga vira o total, para relatorio antigo nao quebrar
+      criancas: o.faixas.reduce((s, f) => s + f.quantidade, 0),
       apetite: o.apetite,
+      duracao_horas: o.duracaoHoras,
       margem: o.margem,
       fator_carvao: o.fatorCarvao,
       preco_carvao: o.precoCarvao,
@@ -156,6 +227,7 @@ export const repositorioSupabase: Repositorio = {
           evento_id: o.id,
           item_id: i.id.includes('-') ? i.id : null,
           nome: i.nome,
+          grupo: i.grupo,
           categoria: i.categoria,
           unidade: i.unidade,
           por_pessoa: i.porPessoa,
@@ -173,6 +245,38 @@ export const repositorioSupabase: Repositorio = {
       await supabase.from('evento_custos').insert(
         o.custosExtras.map((c) => ({ evento_id: o.id, descricao: c.descricao, valor: c.valor })),
       );
+    }
+
+    await supabase.from('evento_servicos').delete().eq('evento_id', o.id);
+    if (o.servicos.length) {
+      const { error: e3 } = await supabase.from('evento_servicos').insert(
+        o.servicos.map((x, ordem) => ({
+          evento_id: o.id,
+          servico_id: x.servicoId,
+          nome: x.nome,
+          papel: x.papel,
+          pessoa: x.pessoa,
+          quantidade: x.quantidade,
+          valor: x.valor,
+          ordem,
+        })),
+      );
+      if (e3) throw e3;
+    }
+
+    await supabase.from('evento_faixas').delete().eq('evento_id', o.id);
+    if (o.faixas.length) {
+      const { error: e4 } = await supabase.from('evento_faixas').insert(
+        o.faixas.map((f, ordem) => ({
+          evento_id: o.id,
+          faixa_id: f.faixaId,
+          nome: f.nome,
+          percentual: f.percentual,
+          quantidade: f.quantidade,
+          ordem,
+        })),
+      );
+      if (e4) throw e4;
     }
   },
 
@@ -193,6 +297,7 @@ export const repositorioSupabase: Repositorio = {
     return (data ?? []).map((l) => ({
       id: l.id as string,
       nome: l.nome as string,
+      grupo: (l.grupo as string) ?? '',
       categoria: l.categoria as Item['categoria'],
       unidade: l.unidade as Item['unidade'],
       porPessoa: Number(l.por_pessoa),
@@ -206,6 +311,7 @@ export const repositorioSupabase: Repositorio = {
       .from('itens_catalogo')
       .update({
         nome: item.nome,
+        grupo: item.grupo,
         categoria: item.categoria,
         unidade: item.unidade,
         por_pessoa: item.porPessoa,
@@ -221,6 +327,7 @@ export const repositorioSupabase: Repositorio = {
       .from('itens_catalogo')
       .insert({
         nome: item.nome,
+        grupo: item.grupo,
         categoria: item.categoria,
         unidade: item.unidade,
         por_pessoa: item.porPessoa,
@@ -238,6 +345,128 @@ export const repositorioSupabase: Repositorio = {
     // Desativa em vez de apagar: evento antigo referencia este item, e apagar
     // levaria a referência junto.
     const { error } = await supabase.from('itens_catalogo').update({ ativo: false }).eq('id', id);
+    if (error) throw error;
+  },
+
+  async lerServicos(): Promise<Servico[]> {
+    const [{ data: servicos, error }, { data: faixas }] = await Promise.all([
+      supabase.from('servicos_catalogo').select('*').eq('ativo', true).order('ordem'),
+      supabase.from('servico_faixas').select('*').order('min_convidados'),
+    ]);
+    if (error) throw error;
+
+    return (servicos ?? []).map((s) => ({
+      id: s.id as string,
+      nome: s.nome as string,
+      papel: s.papel as PapelDeServico,
+      valorPadrao: Number(s.valor_padrao),
+      usaFaixa: s.usa_faixa as boolean,
+      faixas: (faixas ?? [])
+        .filter((f) => f.servico_id === s.id)
+        .map((f) => ({
+          min: f.min_convidados as number,
+          max: (f.max_convidados as number | null) ?? null,
+          valor: Number(f.valor),
+        })),
+    }));
+  },
+
+  async salvarServico(servico) {
+    const { error } = await supabase
+      .from('servicos_catalogo')
+      .update({
+        nome: servico.nome,
+        papel: servico.papel,
+        valor_padrao: servico.valorPadrao,
+        usa_faixa: servico.usaFaixa,
+      })
+      .eq('id', servico.id);
+    if (error) throw error;
+
+    // As faixas sao poucas por servico; reescrever inteiro evita reconciliacao
+    // e o bug sutil de sincronia que ela traz.
+    await supabase.from('servico_faixas').delete().eq('servico_id', servico.id);
+    if (servico.faixas.length) {
+      await supabase.from('servico_faixas').insert(
+        servico.faixas.map((f) => ({
+          servico_id: servico.id,
+          min_convidados: f.min,
+          max_convidados: f.max,
+          valor: f.valor,
+        })),
+      );
+    }
+  },
+
+  async criarServico(servico) {
+    const { data, error } = await supabase
+      .from('servicos_catalogo')
+      .insert({
+        nome: servico.nome,
+        papel: servico.papel,
+        valor_padrao: servico.valorPadrao,
+        usa_faixa: servico.usaFaixa,
+        ordem: 999,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return { ...servico, id: data.id as string, faixas: [] };
+  },
+
+  async removerServico(id) {
+    // desativa: evento antigo referencia este servico
+    const { error } = await supabase.from('servicos_catalogo').update({ ativo: false }).eq('id', id);
+    if (error) throw error;
+  },
+
+  async lerFaixasEtarias(): Promise<FaixaEtaria[]> {
+    const { data, error } = await supabase
+      .from('faixas_etarias')
+      .select('*')
+      .eq('ativo', true)
+      .order('ordem');
+    if (error) throw error;
+    return (data ?? []).map((f) => ({
+      id: f.id as string,
+      nome: f.nome as string,
+      idadeMin: f.idade_min as number,
+      idadeMax: (f.idade_max as number | null) ?? null,
+      percentual: Number(f.percentual),
+    }));
+  },
+
+  async salvarFaixaEtaria(faixa) {
+    const { error } = await supabase
+      .from('faixas_etarias')
+      .update({
+        nome: faixa.nome,
+        idade_min: faixa.idadeMin,
+        idade_max: faixa.idadeMax,
+        percentual: faixa.percentual,
+      })
+      .eq('id', faixa.id);
+    if (error) throw error;
+  },
+
+  async criarFaixaEtaria(faixa) {
+    const { data, error } = await supabase
+      .from('faixas_etarias')
+      .insert({
+        nome: faixa.nome,
+        idade_min: faixa.idadeMin,
+        idade_max: faixa.idadeMax,
+        percentual: faixa.percentual,
+        ordem: 999,
+      })
+      .select()
+      .single();
+    if (error) throw error;
+    return { ...faixa, id: data.id as string };
+  },
+
+  async removerFaixaEtaria(id) {
+    const { error } = await supabase.from('faixas_etarias').update({ ativo: false }).eq('id', id);
     if (error) throw error;
   },
 

@@ -9,7 +9,8 @@ import Equipe from './componentes/Equipe';
 import ListaDeOrcamentos from './componentes/ListaDeOrcamentos';
 import { repositorio } from './dados/supabase';
 import { FATOR_CARVAO_PADRAO, MARGEM_PADRAO, PRECO_CARVAO_PADRAO, SELECAO_PADRAO } from './dominio/catalogo';
-import type { Item, Membro, Orcamento } from './dominio/tipos';
+import { valorSugerido } from './dominio/calculo';
+import type { FaixaEtaria, Item, Membro, Orcamento, Servico } from './dominio/tipos';
 import { novoId } from './formato';
 import { supabase } from './integrations/supabase/client';
 import { Calendario, Faisca, Lista, Pessoas, Recibo } from './componentes/Icones';
@@ -24,7 +25,10 @@ const ABAS = [
   { id: 'assistente', rotulo: 'Assistente', Icone: Faisca },
 ] satisfies { id: Aba; rotulo: string; Icone: (p: { className?: string }) => React.ReactElement }[];
 
-function orcamentoNovo(catalogo: Item[]): Orcamento {
+/** Serviços que todo evento leva, conforme a planilha do cliente. */
+const SERVICOS_DE_PARTIDA = ['Churrasqueiro', 'Organização (metrê)', 'Imposto (DAS)', 'Caixa'];
+
+function orcamentoNovo(catalogo: Item[], servicos: Servico[], adultos = 30): Orcamento {
   const agora = new Date().toISOString();
   return {
     id: novoId(),
@@ -35,13 +39,27 @@ function orcamentoNovo(catalogo: Item[]): Orcamento {
     local: '',
     observacoes: '',
     situacao: 'orcado',
-    adultos: 30,
-    criancas: 0,
+    adultos,
+    faixas: [],
     apetite: 'normal',
+    duracaoHoras: 5,
     // Cópia do catálogo: o preço da picanha muda, o orçamento fechado não.
     itens: catalogo.map((i) => ({ ...i })),
     // Por nome, e nao por id: os ids agora vem do banco e mudam por projeto.
     selecionados: catalogo.filter((i) => SELECAO_PADRAO.includes(i.nome)).map((i) => i.id),
+    // Já vem com o básico: esquecer a linha de serviço é o erro mais caro
+    // possível aqui, porque ela sozinha passa dos insumos no orçamento deles.
+    servicos: servicos
+      .filter((s) => SERVICOS_DE_PARTIDA.includes(s.nome))
+      .map((s) => ({
+        id: `novo-${s.id}`,
+        servicoId: s.id,
+        nome: s.nome,
+        papel: s.papel,
+        pessoa: '',
+        quantidade: 1,
+        valor: valorSugerido(s, adultos),
+      })),
     custosExtras: [],
     margem: MARGEM_PADRAO,
     fatorCarvao: FATOR_CARVAO_PADRAO,
@@ -62,6 +80,8 @@ export default function App() {
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
   const [catalogo, setCatalogo] = useState<Item[]>([]);
   const [membros, setMembros] = useState<Membro[]>([]);
+  const [servicos, setServicos] = useState<Servico[]>([]);
+  const [faixas, setFaixas] = useState<FaixaEtaria[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
 
@@ -91,14 +111,18 @@ export default function App() {
       setAprovado(liberado);
       if (!liberado) return;
 
-      const [o, c, m] = await Promise.all([
+      const [o, c, m, sv, fx] = await Promise.all([
         repositorio.listarOrcamentos(),
         repositorio.lerCatalogo(),
         repositorio.listarMembros(),
+        repositorio.lerServicos(),
+        repositorio.lerFaixasEtarias(),
       ]);
       setOrcamentos(o);
       setCatalogo(c);
       setMembros(m);
+      setServicos(sv);
+      setFaixas(fx);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -156,6 +180,8 @@ export default function App() {
       <EditorDeOrcamento
         orcamento={aberto}
         membros={membros}
+        servicosDisponiveis={servicos}
+        faixasDisponiveis={faixas}
         aoMudar={salvar}
         aoVoltar={() => setAbertoId(null)}
         aoRemover={async () => {
@@ -200,7 +226,7 @@ export default function App() {
               orcamentos={orcamentos}
               aoAbrir={setAbertoId}
               aoCriar={async () => {
-                const o = orcamentoNovo(catalogo);
+                const o = orcamentoNovo(catalogo, servicos);
                 await salvar(o);
                 setAbertoId(o.id);
               }}

@@ -1,37 +1,45 @@
 import { useEffect, useMemo, useState } from 'react';
 import { repositorio } from '../dados/supabase';
-import { EXTRAS_SUGERIDOS, ROTULO_CATEGORIA } from '../dominio/catalogo';
-import { calcular, redistribuirCarnes } from '../dominio/calculo';
+import { CATEGORIAS, EXTRAS_SUGERIDOS, ROTULO_CATEGORIA } from '../dominio/catalogo';
+import { calcular, redistribuirCarnes, totalDeConvidados, valorSugerido } from '../dominio/calculo';
 import {
+  ROTULO_PAPEL,
   ROTULO_SITUACAO,
   type Apetite,
-  type Categoria,
   type Escala,
+  type FaixaEtaria,
   type Membro,
   type Orcamento,
+  type Servico,
   type Situacao,
 } from '../dominio/tipos';
 import { decimal, inteiro, novoId, quantidade, real } from '../formato';
-import { textoDaListaDeCompras, textoDaProposta } from '../texto';
+import { exportarOrcamento } from '../excel';
+import { textoDaEscala, textoDaListaDeCompras, textoDaProposta } from '../texto';
 import { BotaoCopiar, Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 
-const CATEGORIAS: Categoria[] = ['carne', 'entrada', 'guarnicao'];
 const METAS_DE_CARNE = [300, 350, 400, 450, 500];
 
 export default function EditorDeOrcamento({
   orcamento,
   membros,
+  servicosDisponiveis,
+  faixasDisponiveis,
   aoMudar,
   aoVoltar,
   aoRemover,
 }: {
   orcamento: Orcamento;
   membros: Membro[];
+  servicosDisponiveis: Servico[];
+  faixasDisponiveis: FaixaEtaria[];
   aoMudar: (o: Orcamento) => void;
   aoVoltar: () => void;
   aoRemover: () => void;
 }) {
-  const [aba, setAba] = useState<'evento' | 'cardapio' | 'equipe' | 'custos' | 'resultado'>('evento');
+  const [aba, setAba] = useState<
+    'evento' | 'cardapio' | 'servicos' | 'equipe' | 'custos' | 'resultado'
+  >('evento');
   const resultado = useMemo(() => calcular(orcamento), [orcamento]);
 
   const mudar = (parcial: Partial<Orcamento>) =>
@@ -66,6 +74,7 @@ export default function EditorDeOrcamento({
             [
               ['evento', 'Evento'],
               ['cardapio', 'Cardápio'],
+              ['servicos', 'Serviços'],
               ['equipe', 'Equipe'],
               ['custos', 'Custos'],
               ['resultado', 'Resultado'],
@@ -122,9 +131,70 @@ export default function EditorDeOrcamento({
               <Campo rotulo="Adultos">
                 <CampoNumero valor={orcamento.adultos} aoMudar={(v) => mudar({ adultos: v })} sufixo="pes." />
               </Campo>
-              <Campo rotulo="Crianças" dica="Conta como meio adulto no cálculo.">
-                <CampoNumero valor={orcamento.criancas} aoMudar={(v) => mudar({ criancas: v })} sufixo="pes." />
+              <Campo rotulo="Duração do evento">
+                <CampoNumero
+                  valor={orcamento.duracaoHoras}
+                  aoMudar={(v) => mudar({ duracaoHoras: v })}
+                  sufixo="h"
+                />
               </Campo>
+            </div>
+
+            {/*
+              Crianças por faixa de idade, no lugar da regra fixa de metade.
+              O percentual vale para as duas pontas: quanto a criança come e
+              quanto ela paga. É o que faz a soma da cobrança fechar com o custo.
+            */}
+            <div>
+              <p className="rotulo mb-2">Crianças por faixa de idade</p>
+              <div className="space-y-2">
+                {faixasDisponiveis.map((f) => {
+                  const noEvento = orcamento.faixas.find((x) => x.faixaId === f.id);
+                  const quantidade = noEvento?.quantidade ?? 0;
+                  return (
+                    <div key={f.id} className="cartao flex items-center gap-3 p-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate font-semibold">{f.nome}</p>
+                        <p className="text-sm text-fumaca">
+                          {f.percentual === 0
+                            ? 'não paga'
+                            : f.percentual === 100
+                              ? 'paga como adulto'
+                              : `paga ${inteiro(f.percentual)}% do adulto`}
+                        </p>
+                      </div>
+                      <div className="w-24 shrink-0">
+                        <CampoNumero
+                          valor={quantidade}
+                          aoMudar={(v) => {
+                            const outras = orcamento.faixas.filter((x) => x.faixaId !== f.id);
+                            mudar({
+                              faixas:
+                                v > 0
+                                  ? [
+                                      ...outras,
+                                      {
+                                        id: noEvento?.id ?? `nova-${f.id}`,
+                                        faixaId: f.id,
+                                        nome: f.nome,
+                                        percentual: f.percentual,
+                                        quantidade: v,
+                                      },
+                                    ]
+                                  : outras,
+                            });
+                          }}
+                          sufixo="pes."
+                          aria-label={`Crianças de ${f.nome}`}
+                        />
+                      </div>
+                    </div>
+                  );
+                })}
+                {!faixasDisponiveis.length && (
+                  <p className="text-sm text-fumaca">Nenhuma faixa cadastrada ainda.</p>
+                )}
+              </div>
             </div>
 
             <Campo rotulo="Apetite" dica="Ajusta tudo de uma vez, sem mexer item por item.">
@@ -149,8 +219,9 @@ export default function EditorDeOrcamento({
             </Campo>
 
             <p className="cartao p-4 text-sm text-fumaca">
-              O cálculo usa <strong className="text-creme">{decimal(resultado.pessoasEquivalentes)} pessoas</strong>{' '}
-              equivalentes, somando adultos, metade de cada criança e o apetite.
+              São <strong className="text-creme">{inteiro(totalDeConvidados(orcamento))} convidados</strong>, que pesam{' '}
+              <strong className="text-creme">{decimal(resultado.pessoasEquivalentes)} pessoas</strong> na compra.
+              A diferença é a fração de cada faixa de idade, mais o apetite.
             </p>
           </div>
         )}
@@ -347,6 +418,16 @@ export default function EditorDeOrcamento({
           </div>
         )}
 
+        {aba === 'servicos' && (
+          <ServicosDoEvento
+            orcamento={orcamento}
+            disponiveis={servicosDisponiveis}
+            convidados={totalDeConvidados(orcamento)}
+            resultado={resultado}
+            mudar={mudar}
+          />
+        )}
+
         {aba === 'equipe' && <EscalaDoEvento eventoId={orcamento.id} membros={membros} />}
 
         {aba === 'resultado' && <Resultado orcamento={orcamento} resultado={resultado} />}
@@ -383,7 +464,10 @@ function Resultado({
 }) {
   const proposta = textoDaProposta(orcamento, resultado);
   const compras = textoDaListaDeCompras(orcamento, resultado);
+  const escala = textoDaEscala(orcamento, resultado);
   const zap = orcamento.contato.replace(/\D/g, '');
+  const [exportando, setExportando] = useState(false);
+  const [erroExport, setErroExport] = useState('');
 
   return (
     <div className="space-y-6">
@@ -417,6 +501,38 @@ function Resultado({
         ))}
       </div>
 
+      {/* Exportar fecha o ciclo: o orcamento sai no formato de planilha que
+          eles ja usam, com insumos por preparo, servico e total por convidado. */}
+      <div className="cartao p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="rotulo">Planilha</p>
+            <p className="mt-1 text-sm text-fumaca">
+              Baixa o orçamento em Excel, com insumos, serviço e lista de compras.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="botao botao-brasa"
+            disabled={exportando}
+            onClick={async () => {
+              setErroExport('');
+              setExportando(true);
+              try {
+                await exportarOrcamento(orcamento, resultado);
+              } catch (e) {
+                setErroExport(e instanceof Error ? e.message : String(e));
+              } finally {
+                setExportando(false);
+              }
+            }}
+          >
+            {exportando ? 'Gerando...' : 'Exportar em Excel'}
+          </button>
+        </div>
+        {erroExport && <p className="mt-3 text-sm text-brasa-clara">{erroExport}</p>}
+      </div>
+
       <section>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h2 className="titulo text-lg text-dourado">Proposta para o cliente</h2>
@@ -446,6 +562,16 @@ function Resultado({
         </div>
         <pre className="cartao mt-3 overflow-x-auto p-4 text-sm whitespace-pre-wrap font-sans text-creme">
           {compras}
+        </pre>
+      </section>
+
+      <section>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h2 className="titulo text-lg text-dourado">Escala da equipe</h2>
+          <BotaoCopiar texto={escala} />
+        </div>
+        <pre className="cartao mt-3 overflow-x-auto p-4 text-sm whitespace-pre-wrap font-sans text-creme">
+          {escala}
         </pre>
       </section>
     </div>
@@ -570,6 +696,139 @@ function EscalaDoEvento({ eventoId, membros }: { eventoId: string; membros: Memb
                 }}
               >
                 + {m.nome}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Serviços do evento.
+ *
+ * É a metade do orçamento que faltava: equipe, frete, imposto e caixa. Na
+ * planilha do cliente essa seção sozinha custa mais que os insumos, então
+ * esquecer uma linha aqui é o erro mais caro que o app pode deixar acontecer.
+ */
+function ServicosDoEvento({
+  orcamento,
+  disponiveis,
+  convidados,
+  resultado,
+  mudar,
+}: {
+  orcamento: Orcamento;
+  disponiveis: Servico[];
+  convidados: number;
+  resultado: ReturnType<typeof calcular>;
+  mudar: (parcial: Partial<Orcamento>) => void;
+}) {
+  const usados = new Set(orcamento.servicos.map((s) => s.servicoId));
+  const aAdicionar = disponiveis.filter((s) => !usados.has(s.id));
+
+  const atualizar = (id: string, parcial: Partial<(typeof orcamento.servicos)[number]>) =>
+    mudar({ servicos: orcamento.servicos.map((s) => (s.id === id ? { ...s, ...parcial } : s)) });
+
+  return (
+    <div className="space-y-5">
+      <div className="cartao p-4">
+        <p className="rotulo">Total de serviço</p>
+        <p className="metrica mt-1">{real(resultado.custoServicos)}</p>
+        <p className="mt-2 text-sm text-fumaca">
+          Equipe, frete, imposto e taxas. Entra no preço junto com as compras.
+        </p>
+      </div>
+
+      <div className="space-y-2">
+        {orcamento.servicos.map((s) => (
+          <div key={s.id} className="cartao p-3">
+            <div className="flex items-center gap-2">
+              <span className="shrink-0 rounded-full border border-borda px-2 py-0.5 text-[0.65rem] text-fumaca">
+                {ROTULO_PAPEL[s.papel]}
+              </span>
+              <p className="min-w-0 flex-1 truncate font-semibold">{s.nome}</p>
+              <button
+                type="button"
+                aria-label={`Tirar ${s.nome}`}
+                className="botao botao-linha !min-h-9 !w-9 shrink-0 !px-0 !text-fumaca"
+                onClick={() => mudar({ servicos: orcamento.servicos.filter((x) => x.id !== s.id) })}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="mt-2 grid grid-cols-3 gap-2">
+              <Campo rotulo="Quem">
+                <CampoTexto
+                  valor={s.pessoa}
+                  aoMudar={(v) => atualizar(s.id, { pessoa: v })}
+                  placeholder="Nome"
+                  aria-label={`Quem faz ${s.nome}`}
+                />
+              </Campo>
+              <Campo rotulo={s.papel === 'frete' ? 'Km' : 'Qtd'}>
+                <CampoNumero
+                  valor={s.quantidade}
+                  aoMudar={(v) => atualizar(s.id, { quantidade: v })}
+                  aria-label={`Quantidade de ${s.nome}`}
+                />
+              </Campo>
+              <Campo rotulo="Valor">
+                <CampoNumero
+                  valor={s.valor}
+                  aoMudar={(v) => atualizar(s.id, { valor: v })}
+                  sufixo="R$"
+                  aria-label={`Valor de ${s.nome}`}
+                />
+              </Campo>
+            </div>
+
+            <p className="mt-2 text-right text-sm text-fumaca">
+              {inteiro(s.quantidade)} x {real(s.valor)} ={' '}
+              <strong className="text-creme">{real(s.quantidade * s.valor)}</strong>
+            </p>
+          </div>
+        ))}
+
+        {!orcamento.servicos.length && (
+          <p className="cartao p-4 text-sm text-fumaca">
+            Nenhum serviço ainda. Sem isso o preço sai só com o custo das compras, bem abaixo do real.
+          </p>
+        )}
+      </div>
+
+      {aAdicionar.length > 0 && (
+        <div>
+          <p className="rotulo mb-2">Adicionar serviço</p>
+          <div className="flex flex-wrap gap-2">
+            {aAdicionar.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                className="botao botao-linha !min-h-9 !px-3 text-sm"
+                onClick={() =>
+                  mudar({
+                    servicos: [
+                      ...orcamento.servicos,
+                      {
+                        id: `novo-${s.id}-${Date.now()}`,
+                        servicoId: s.id,
+                        nome: s.nome,
+                        papel: s.papel,
+                        pessoa: '',
+                        quantidade: 1,
+                        // O cachê do Alan e da Érica muda com o tamanho do
+                        // evento. O valor já vem da faixa certa.
+                        valor: valorSugerido(s, convidados),
+                      },
+                    ],
+                  })
+                }
+              >
+                + {s.nome}
+                {s.usaFaixa && <span className="ml-1 text-dourado">{real(valorSugerido(s, convidados))}</span>}
               </button>
             ))}
           </div>

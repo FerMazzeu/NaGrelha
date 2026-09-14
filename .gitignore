@@ -8,3 +8,9 @@ dist-ssr
 # Gerado por scripts/imagens.mjs a partir de fotos/. A fonte e fotos/, que
 # entra no git; src/assets e derivado e se refaz com `npm run imagens`.
 src/assets/
+
+# Planilha de origem do cliente. NAO entra no git: tem preco de fornecedor e
+# o cache individual de cada pessoa da equipe, com nome. Este repositorio e
+# publico, e o historico do git guarda para sempre.
+# Os dados dela ja vivem no Supabase, protegidos por RLS.
+*.xlsx

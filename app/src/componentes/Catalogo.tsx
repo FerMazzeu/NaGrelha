@@ -1,14 +1,13 @@
 import { useMemo, useState } from 'react';
-import { ROTULO_CATEGORIA } from '../dominio/catalogo';
+import { CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
 import type { Categoria, Item } from '../dominio/tipos';
 import { casaBusca, inteiro, real } from '../formato';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
 
-const CATEGORIAS: Categoria[] = ['carne', 'entrada', 'guarnicao'];
-
 const VAZIO: Omit<Item, 'id'> = {
   nome: '',
+  grupo: '',
   categoria: 'carne',
   unidade: 'kg',
   porPessoa: 100,

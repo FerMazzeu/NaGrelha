@@ -1,11 +1,27 @@
 /** Categorias existem para agrupar na tela e na lista de compras. */
-export type Categoria = 'carne' | 'entrada' | 'guarnicao';
+export type Categoria =
+  | 'carne'
+  | 'entrada'
+  | 'guarnicao'
+  | 'bebida'
+  /** louça, rechô, bandeja: o que volta para casa depois do evento */
+  | 'estrutura'
+  | 'limpeza'
+  | 'extra';
 
 export type Unidade = 'kg' | 'un';
 
 export type Item = {
   id: string;
   nome: string;
+  /**
+   * O preparo a que o item pertence: "Pão de alho", "Churrasco", "Maionese".
+   *
+   * É assim que o orçamento do cliente é organizado, e faz diferença: quatro
+   * linhas de "Cheiro verde" em preparos diferentes não são duplicata, são
+   * compras separadas que somam na lista.
+   */
+  grupo: string;
   categoria: Categoria;
   unidade: Unidade;
 
@@ -52,6 +68,67 @@ export const ROTULO_SITUACAO: Record<Situacao, string> = {
   perdido: 'Perdido',
 };
 
+/** Equipe cobra por pessoa no evento; imposto e caixa sao linha fixa. */
+export type PapelDeServico = 'equipe' | 'frete' | 'imposto' | 'taxa' | 'locacao';
+
+export const ROTULO_PAPEL: Record<PapelDeServico, string> = {
+  equipe: 'Equipe',
+  frete: 'Frete',
+  imposto: 'Imposto',
+  taxa: 'Taxa',
+  locacao: 'Locação',
+};
+
+/** Cachê que muda com o tamanho do evento. `max` nulo é "daqui para cima". */
+export type FaixaDeCache = {
+  min: number;
+  max: number | null;
+  valor: number;
+};
+
+export type Servico = {
+  id: string;
+  nome: string;
+  papel: PapelDeServico;
+  valorPadrao: number;
+  usaFaixa: boolean;
+  faixas: FaixaDeCache[];
+};
+
+/** Uma linha de serviço dentro de um orçamento. */
+export type ServicoDoEvento = {
+  id: string;
+  servicoId: string | null;
+  nome: string;
+  papel: PapelDeServico;
+  /** Quem vai fazer. Na planilha do cliente isso é uma coluna. */
+  pessoa: string;
+  quantidade: number;
+  valor: number;
+};
+
+/**
+ * Faixa etária das crianças.
+ *
+ * Substitui a regra fixa de "criança paga metade". O percentual vale para as
+ * duas pontas da conta: quanto a criança come e quanto ela paga.
+ */
+export type FaixaEtaria = {
+  id: string;
+  nome: string;
+  idadeMin: number;
+  idadeMax: number | null;
+  percentual: number;
+};
+
+export type FaixaNoEvento = {
+  id: string;
+  faixaId: string | null;
+  nome: string;
+  percentual: number;
+  quantidade: number;
+};
+
 export type Membro = {
   id: string;
   nome: string;
@@ -81,15 +158,20 @@ export type Orcamento = {
   situacao: Situacao;
 
   adultos: number;
-  /** Criança come perto da metade de um adulto. */
-  criancas: number;
+  /**
+   * Crianças por faixa etária. Cada faixa tem um percentual que diz quanto
+   * daquele convidado conta, para comer e para pagar.
+   */
+  faixas: FaixaNoEvento[];
   apetite: Apetite;
+  duracaoHoras: number;
 
   /** Cópia dos itens no momento do orçamento: preço muda, orçamento fechado não. */
   itens: Item[];
   /** Ids dos itens que entram neste evento. */
   selecionados: string[];
 
+  servicos: ServicoDoEvento[];
   custosExtras: CustoExtra[];
   /** Markup sobre o custo, em porcentagem. 60 significa custo mais 60%. */
   margem: number;
@@ -112,7 +194,11 @@ export type LinhaCalculada = {
 
 export type Resultado = {
   pessoasEquivalentes: number;
+  /** Cabeças de verdade, para a linha de "X convidados" na proposta. */
+  convidados: number;
   linhas: LinhaCalculada[];
+  servicos: { servico: ServicoDoEvento; total: number }[];
+  custoServicos: number;
   /** Gramas de carne no prato, por pessoa. O número que o Alan discute. */
   carnePorPessoa: number;
   /** Quilos de carne crua a comprar. */
@@ -128,4 +214,7 @@ export type Resultado = {
   lucro: number;
   /** Margem sobre o preço de venda, que é diferente do markup sobre o custo. */
   margemSobrePreco: number;
+  /** Quanto um adulto paga. Criança paga a fração da faixa dela. */
+  precoPorAdulto: number;
+  cobranca: { rotulo: string; quantidade: number; unitario: number; total: number }[];
 };

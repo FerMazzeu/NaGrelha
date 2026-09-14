@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { calcular } from '../dominio/calculo';
+import { calcular, totalDeConvidados } from '../dominio/calculo';
 import { ROTULO_CATEGORIA } from '../dominio/catalogo';
 import type { Orcamento } from '../dominio/tipos';
 import { decimal, inteiro, quantidade, real } from '../formato';
@@ -38,9 +38,13 @@ function contextoDoEvento(o: Orcamento | null) {
     `Cliente: ${o.cliente || 'sem nome'}`,
     `Data: ${o.data || 'sem data'}`,
     `Local: ${o.local || 'nao informado'}`,
-    `Convidados: ${inteiro(o.adultos)} adultos e ${inteiro(o.criancas)} criancas (${decimal(
-      r.pessoasEquivalentes,
-    )} pessoas equivalentes, apetite ${o.apetite})`,
+    `Convidados: ${inteiro(totalDeConvidados(o))} no total, sendo ${inteiro(o.adultos)} adultos`,
+    ...o.faixas
+      .filter((f) => f.quantidade > 0)
+      .map((f) => `  - ${f.nome}: ${inteiro(f.quantidade)} criancas, pagam ${inteiro(f.percentual)}% do adulto`),
+    `Peso de consumo: ${decimal(r.pessoasEquivalentes)} pessoas equivalentes, apetite ${o.apetite}`,
+    `Servicos: ${r.servicos.map((x) => `${x.servico.nome} ${real(x.total)}`).join(', ') || 'nenhum'}`,
+    `Custo de servico: ${real(r.custoServicos)}`,
     `Carne por pessoa no prato: ${inteiro(r.carnePorPessoa)} g`,
     `Carne crua a comprar: ${decimal(r.carneCrua)} kg`,
     `Carvao: ${inteiro(r.carvaoKg)} kg`,

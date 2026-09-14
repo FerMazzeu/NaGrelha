@@ -17,8 +17,8 @@ export const contato = {
   alan: {
     nome: 'Alan Xavier',
     papel: 'Consultoria técnica',
-    telefone: '5535988218023',
-    exibicao: '(35) 98821-8023',
+    telefone: '5535988219023',
+    exibicao: '(35) 98821-9023',
   },
   instagram: 'nagrelha_alanxavier',
   instagramUrl: 'https://instagram.com/nagrelha_alanxavier',

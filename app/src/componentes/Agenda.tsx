@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { calcular } from '../dominio/calculo';
+import { calcular, totalDeConvidados } from '../dominio/calculo';
 import { ROTULO_SITUACAO, type Orcamento, type Situacao } from '../dominio/tipos';
 import { inteiro, real } from '../formato';
 
@@ -113,7 +113,7 @@ export default function Agenda({
 
 function CartaoDeEvento({ orcamento, aoAbrir }: { orcamento: Orcamento; aoAbrir: (id: string) => void }) {
   const r = calcular(orcamento);
-  const pessoas = orcamento.adultos + orcamento.criancas;
+  const pessoas = totalDeConvidados(orcamento);
 
   return (
     <button

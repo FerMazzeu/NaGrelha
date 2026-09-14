@@ -1,4 +1,4 @@
-import type { Escala, Item, Membro, Orcamento } from '../dominio/tipos';
+import type { Escala, FaixaEtaria, Item, Membro, Orcamento, Servico } from '../dominio/tipos';
 
 /**
  * A porta de entrada dos dados.
@@ -17,6 +17,17 @@ export interface Repositorio {
   salvarItem(item: Item): Promise<void>;
   criarItem(item: Omit<Item, 'id'>): Promise<Item>;
   removerItem(id: string): Promise<void>;
+
+  /** Catálogo de serviços, com as faixas de cachê por tamanho de evento. */
+  lerServicos(): Promise<Servico[]>;
+  salvarServico(servico: Servico): Promise<void>;
+  criarServico(servico: Omit<Servico, 'id' | 'faixas'>): Promise<Servico>;
+  removerServico(id: string): Promise<void>;
+
+  lerFaixasEtarias(): Promise<FaixaEtaria[]>;
+  salvarFaixaEtaria(faixa: FaixaEtaria): Promise<void>;
+  criarFaixaEtaria(faixa: Omit<FaixaEtaria, 'id'>): Promise<FaixaEtaria>;
+  removerFaixaEtaria(id: string): Promise<void>;
 
   listarMembros(): Promise<Membro[]>;
   salvarMembro(membro: Membro): Promise<void>;

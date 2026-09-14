@@ -23,7 +23,7 @@ const exigidos = [
   'Isabelle',
   'Cortes nobres',
   'wa.me/5535988638687',
-  'wa.me/5535988218023',
+  'wa.me/5535988219023',
   'nagrelha_alanxavier',
 ];
 

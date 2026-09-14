@@ -1,3 +1,5 @@
+import type { Categoria } from './tipos';
+
 /**
  * Constantes do dominio que nao vivem no banco.
  *
@@ -24,11 +26,26 @@ export const SELECAO_PADRAO = [
   'Salada tropical',
 ];
 
-export const ROTULO_CATEGORIA = {
+export const ROTULO_CATEGORIA: Record<Categoria, string> = {
   carne: 'Carnes',
   entrada: 'Entradas',
   guarnicao: 'Guarnições',
-} as const;
+  bebida: 'Bebidas',
+  estrutura: 'Louças e estrutura',
+  limpeza: 'Limpeza',
+  extra: 'Extras',
+};
+
+/** A ordem em que as seções aparecem na tela e na lista de compras. */
+export const CATEGORIAS: Categoria[] = [
+  'carne',
+  'entrada',
+  'guarnicao',
+  'bebida',
+  'extra',
+  'estrutura',
+  'limpeza',
+];
 
 /** Sugestões de custo que aparecem como atalho, para não digitar toda vez. */
 export const EXTRAS_SUGERIDOS = [
@@ -39,6 +56,14 @@ export const EXTRAS_SUGERIDOS = [
   'Gás e acendedor',
 ];
 
-export const MARGEM_PADRAO = 60;
+/**
+ * Zero de proposito.
+ *
+ * No modelo do cliente nao existe markup: o que paga o trabalho ja esta nas
+ * linhas de servico, e imposto e caixa tambem. Somar 60% em cima disso
+ * dobraria o preco em relacao ao que eles cobram hoje. Quem quiser margem
+ * extra sobe esse numero no proprio orcamento.
+ */
+export const MARGEM_PADRAO = 0;
 export const FATOR_CARVAO_PADRAO = 0.5;
 export const PRECO_CARVAO_PADRAO = 5.5;

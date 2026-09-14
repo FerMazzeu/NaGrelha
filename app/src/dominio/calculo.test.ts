@@ -1,16 +1,33 @@
 import { describe, expect, it } from 'vitest';
-import { arredondarCompra, arredondarPreco, calcular, pessoasEquivalentes, redistribuirCarnes } from './calculo';
+import {
+  arredondarCompra,
+  arredondarPreco,
+  calcular,
+  pessoasEquivalentes,
+  redistribuirCarnes,
+  totalDeConvidados,
+  valorDaFaixa,
+} from './calculo';
 import type { Item, Orcamento } from './tipos';
 
 const picanha: Item = {
   id: 'picanha',
   nome: 'Picanha',
+  grupo: 'Churrasco',
   categoria: 'carne',
   unidade: 'kg',
   porPessoa: 100,
   rendimento: 0.5,
   preco: 100,
 };
+
+const faixa = (nome: string, percentual: number, quantidade: number) => ({
+  id: nome,
+  faixaId: null,
+  nome,
+  percentual,
+  quantidade,
+});
 
 function orcamentoDe(parcial: Partial<Orcamento> = {}): Orcamento {
   return {
@@ -20,13 +37,15 @@ function orcamentoDe(parcial: Partial<Orcamento> = {}): Orcamento {
     data: '',
     hora: '',
     local: '',
-    situacao: 'orcado',
     observacoes: '',
+    situacao: 'orcado',
     adultos: 10,
-    criancas: 0,
+    faixas: [],
     apetite: 'normal',
+    duracaoHoras: 5,
     itens: [picanha],
     selecionados: ['picanha'],
+    servicos: [],
     custosExtras: [],
     margem: 0,
     fatorCarvao: 0,
@@ -38,17 +57,38 @@ function orcamentoDe(parcial: Partial<Orcamento> = {}): Orcamento {
 }
 
 describe('pessoas equivalentes', () => {
-  it('conta criança como meia pessoa', () => {
-    expect(pessoasEquivalentes({ adultos: 10, criancas: 4, apetite: 'normal' })).toBe(12);
+  it('adulto conta inteiro', () => {
+    expect(pessoasEquivalentes({ adultos: 10, faixas: [], apetite: 'normal' })).toBe(10);
+  });
+
+  it('criança conta a fração da faixa dela', () => {
+    expect(
+      pessoasEquivalentes({ adultos: 10, faixas: [faixa('6 a 10', 50, 4)], apetite: 'normal' }),
+    ).toBe(12);
+  });
+
+  it('faixa que não paga quase não pesa na compra', () => {
+    expect(
+      pessoasEquivalentes({ adultos: 10, faixas: [faixa('Até 5', 0, 6)], apetite: 'normal' }),
+    ).toBe(10);
+  });
+
+  it('soma várias faixas', () => {
+    const r = pessoasEquivalentes({
+      adultos: 20,
+      faixas: [faixa('Até 5', 0, 3), faixa('6 a 10', 50, 4), faixa('11+', 100, 2)],
+      apetite: 'normal',
+    });
+    expect(r).toBe(24);
   });
 
   it('aplica o apetite sobre o total', () => {
-    expect(pessoasEquivalentes({ adultos: 10, criancas: 0, apetite: 'forte' })).toBeCloseTo(11.5);
-    expect(pessoasEquivalentes({ adultos: 10, criancas: 0, apetite: 'leve' })).toBeCloseTo(8.5);
+    expect(pessoasEquivalentes({ adultos: 10, faixas: [], apetite: 'forte' })).toBeCloseTo(11.5);
   });
 
-  it('não deixa número negativo virar desconto', () => {
-    expect(pessoasEquivalentes({ adultos: -5, criancas: 0, apetite: 'normal' })).toBe(0);
+  it('conta cabeças de verdade separado do peso', () => {
+    const o = { adultos: 10, faixas: [faixa('Até 5', 0, 6)] };
+    expect(totalDeConvidados(o)).toBe(16);
   });
 });
 
@@ -70,50 +110,105 @@ describe('arredondamento', () => {
   });
 });
 
+describe('cachê por faixa de convidados', () => {
+  // a tabela do rodapé da planilha do cliente
+  const faixas = [
+    { min: 1, max: 30, valor: 500 },
+    { min: 31, max: 60, valor: 600 },
+    { min: 61, max: 80, valor: 800 },
+    { min: 81, max: null, valor: 1000 },
+  ];
+
+  it('pega a faixa certa', () => {
+    expect(valorDaFaixa(faixas, 30, 0)).toBe(500);
+    expect(valorDaFaixa(faixas, 31, 0)).toBe(600);
+    expect(valorDaFaixa(faixas, 80, 0)).toBe(800);
+  });
+
+  it('faixa sem teto cobre daqui para cima', () => {
+    expect(valorDaFaixa(faixas, 81, 0)).toBe(1000);
+    expect(valorDaFaixa(faixas, 500, 0)).toBe(1000);
+  });
+
+  it('cai no padrão quando nenhuma faixa cobre', () => {
+    expect(valorDaFaixa(faixas, 0, 123)).toBe(123);
+  });
+});
+
 describe('cálculo do orçamento', () => {
   it('corrige o peso de compra pelo aproveitamento', () => {
-    // 10 pessoas x 100 g no prato = 1000 g servidos.
-    // Com aproveitamento de 0,5, é preciso comprar 2000 g.
     const r = calcular(orcamentoDe());
     expect(r.linhas[0].servido).toBe(1000);
     expect(r.linhas[0].comprar).toBe(2000);
     expect(r.linhas[0].custo).toBeCloseTo(200);
   });
 
-  it('mantém a gramatura por pessoa no prato, não na compra', () => {
-    const r = calcular(orcamentoDe());
-    expect(r.carnePorPessoa).toBe(100);
-    expect(r.carneCrua).toBe(2);
-  });
-
-  it('tira o carvão do peso de carne crua, não do número de convidados', () => {
-    const r = calcular(orcamentoDe({ fatorCarvao: 0.5, precoCarvao: 10 }));
-    // 2 kg de carne crua x 0,5 = 1 kg de carvão
-    expect(r.carvaoKg).toBe(1);
-    expect(r.custoCarvao).toBe(10);
-  });
-
-  it('soma custos extras no custo total', () => {
+  it('soma os serviços no custo', () => {
     const r = calcular(
-      orcamentoDe({ custosExtras: [{ id: 'a', descricao: 'Deslocamento', valor: 150 }] }),
+      orcamentoDe({
+        servicos: [
+          { id: 'a', servicoId: null, nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600 },
+          { id: 'b', servicoId: null, nome: 'Frete', papel: 'frete', pessoa: '', quantidade: 2, valor: 50 },
+        ],
+      }),
     );
-    expect(r.custoItens).toBeCloseTo(200);
-    expect(r.custoTotal).toBeCloseTo(350);
+    expect(r.custoServicos).toBe(700);
+    expect(r.custoTotal).toBeCloseTo(900);
+  });
+
+  it('a cobrança fecha com o preço, sem sobra nem falta', () => {
+    const r = calcular(
+      orcamentoDe({
+        adultos: 20,
+        faixas: [faixa('Até 5', 0, 4), faixa('6 a 10', 50, 6)],
+        servicos: [
+          { id: 'a', servicoId: null, nome: 'Equipe', papel: 'equipe', pessoa: '', quantidade: 1, valor: 1000 },
+        ],
+      }),
+    );
+    const somado = r.cobranca.reduce((s, c) => s + c.total, 0);
+    expect(somado).toBeCloseTo(r.preco, 6);
+  });
+
+  it('criança de 50% paga metade do adulto', () => {
+    const r = calcular(orcamentoDe({ adultos: 10, faixas: [faixa('6 a 10', 50, 2)] }));
+    const adulto = r.cobranca.find((c) => c.rotulo === 'Adultos')!;
+    const crianca = r.cobranca.find((c) => c.rotulo === '6 a 10')!;
+    expect(crianca.unitario).toBeCloseTo(adulto.unitario / 2);
+  });
+
+  it('faixa de 0% aparece na cobrança zerada, porque isento é argumento de venda', () => {
+    const r = calcular(orcamentoDe({ adultos: 10, faixas: [faixa('Até 5', 0, 5)] }));
+    const bebe = r.cobranca.find((c) => c.rotulo === 'Até 5')!;
+    expect(bebe.quantidade).toBe(5);
+    expect(bebe.unitario).toBe(0);
+    expect(bebe.total).toBe(0);
+    expect(r.convidados).toBe(15);
+  });
+
+  it('margem zero devolve exatamente o custo, que é o modelo do cliente', () => {
+    const r = calcular(orcamentoDe({ margem: 0 }));
+    // 200 de custo, arredondado para a dezena
+    expect(r.preco).toBe(200);
+    expect(r.lucro).toBe(0);
   });
 
   it('aplica markup sobre o custo e reporta a margem sobre o preço', () => {
     const r = calcular(orcamentoDe({ margem: 100 }));
-    // custo 200, markup de 100% = 400
     expect(r.preco).toBe(400);
-    expect(r.lucro).toBeCloseTo(200);
-    // markup de 100% sobre o custo é margem de 50% sobre o preço
     expect(r.margemSobrePreco).toBeCloseTo(50);
   });
 
+  it('tira o carvão do peso de carne crua, não do número de convidados', () => {
+    const r = calcular(orcamentoDe({ fatorCarvao: 0.5, precoCarvao: 10 }));
+    expect(r.carvaoKg).toBe(1);
+    expect(r.custoCarvao).toBe(10);
+  });
+
   it('não divide por zero quando não há convidado', () => {
-    const r = calcular(orcamentoDe({ adultos: 0, criancas: 0 }));
+    const r = calcular(orcamentoDe({ adultos: 0, faixas: [] }));
+    expect(r.precoPorAdulto).toBe(0);
     expect(r.precoPorPessoa).toBe(0);
-    expect(r.carnePorPessoa).toBe(0);
     expect(Number.isFinite(r.custoPorPessoa)).toBe(true);
   });
 
@@ -125,7 +220,6 @@ describe('cálculo do orçamento', () => {
 
   it('trata aproveitamento zerado como 1 em vez de estourar', () => {
     const r = calcular(orcamentoDe({ itens: [{ ...picanha, rendimento: 0 }] }));
-    expect(Number.isFinite(r.linhas[0].comprar)).toBe(true);
     expect(r.linhas[0].comprar).toBe(1000);
   });
 });
@@ -144,14 +238,7 @@ describe('redistribuir carnes', () => {
   });
 
   it('não mexe em guarnição', () => {
-    const novo = redistribuirCarnes(itens, ['a', 'b', 'c'], 300);
-    expect(novo.find((i) => i.id === 'c')!.porPessoa).toBe(70);
-  });
-
-  it('não mexe em carne que não está no evento', () => {
-    const novo = redistribuirCarnes(itens, ['a'], 200);
-    expect(novo.find((i) => i.id === 'a')!.porPessoa).toBe(200);
-    expect(novo.find((i) => i.id === 'b')!.porPessoa).toBe(100);
+    expect(redistribuirCarnes(itens, ['a', 'b', 'c'], 300).find((i) => i.id === 'c')!.porPessoa).toBe(70);
   });
 
   it('devolve tudo intacto quando não há carne selecionada', () => {

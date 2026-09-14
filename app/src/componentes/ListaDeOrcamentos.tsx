@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { calcular } from '../dominio/calculo';
+import { calcular, totalDeConvidados } from '../dominio/calculo';
 import { ROTULO_SITUACAO, type Orcamento } from '../dominio/tipos';
 import { dataCurta, inteiro, real } from '../formato';
 
@@ -116,7 +116,7 @@ function Cartao({
           </span>
         </div>
         <p className="mt-0.5 truncate text-sm text-fumaca">
-          {dataCurta(orcamento.data)} · {inteiro(orcamento.adultos + orcamento.criancas)} convidados
+          {dataCurta(orcamento.data)} · {inteiro(totalDeConvidados(orcamento))} convidados
           {orcamento.local ? ` · ${orcamento.local}` : ''}
         </p>
         <p className="mt-1.5 font-display text-xl uppercase text-dourado">{real(r.preco)}</p>
