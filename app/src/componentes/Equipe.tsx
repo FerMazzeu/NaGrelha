@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import type { Membro } from '../dominio/tipos';
+import type { Membro, Perfil } from '../dominio/tipos';
+import Acessos from './Acessos';
 import { casaBusca, real } from '../formato';
 import { Campo, CampoNumero, CampoTexto } from './Campos';
 import { Lupa } from './Icones';
@@ -8,14 +9,24 @@ const FUNCOES = ['Churrasqueiro', 'Auxiliar de grelha', 'Confeitaria', 'Ambienta
 
 export default function Equipe({
   membros,
+  perfis,
+  meuId,
+  souDono,
   aoCriar,
   aoSalvar,
   aoRemover,
+  aoLiberar,
+  aoMudarPapel,
 }: {
   membros: Membro[];
+  perfis: Perfil[];
+  meuId: string;
+  souDono: boolean;
   aoCriar: (m: Omit<Membro, 'id'>) => Promise<void>;
   aoSalvar: (m: Membro) => Promise<void>;
   aoRemover: (id: string) => Promise<void>;
+  aoLiberar: (id: string, aprovado: boolean) => Promise<void>;
+  aoMudarPapel: (id: string, papel: Perfil['papel']) => Promise<void>;
 }) {
   const [novo, setNovo] = useState({ nome: '', funcao: '', telefone: '', cachePadrao: 0 });
   const [abrindo, setAbrindo] = useState(false);
@@ -89,6 +100,15 @@ export default function Equipe({
           </button>
         </div>
       )}
+
+      {/* Liberacao de acesso primeiro: quem entra novo fica travado ate aqui. */}
+      {souDono && (
+        <div className="mt-6">
+          <Acessos perfis={perfis} meuId={meuId} aoLiberar={aoLiberar} aoMudarPapel={aoMudarPapel} />
+        </div>
+      )}
+
+      {souDono && <div className="mt-8 border-t border-borda pt-6" />}
 
       {membros.length > 1 && (
         <div className="relative mt-4">

@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { repositorio } from '../dados/supabase';
-import { CATEGORIAS, EXTRAS_SUGERIDOS, ROTULO_CATEGORIA } from '../dominio/catalogo';
+import { agruparPorPreparo, EXTRAS_SUGERIDOS } from '../dominio/catalogo';
 import { calcular, redistribuirCarnes, totalDeConvidados, valorSugerido } from '../dominio/calculo';
 import {
   ROTULO_PAPEL,
@@ -254,12 +254,35 @@ export default function EditorDeOrcamento({
               </p>
             </div>
 
-            {CATEGORIAS.map((categoria) => (
-              <section key={categoria}>
-                <h2 className="titulo text-lg text-dourado">{ROTULO_CATEGORIA[categoria]}</h2>
+            {/*
+              Por preparo, que foi o pedido do Alan: "separar as materias primas
+              por prato". Cada bloco mostra quantos itens dele estao marcados,
+              porque meio preparo marcado quase sempre e esquecimento.
+            */}
+            {agruparPorPreparo(orcamento.itens).map(([preparo, doPreparo]) => {
+              const marcados = doPreparo.filter((i) => orcamento.selecionados.includes(i.id)).length;
+              return (
+              <section key={preparo}>
+                <div className="flex items-baseline justify-between gap-3">
+                  <h2 className="titulo text-lg text-dourado">{preparo}</h2>
+                  <button
+                    type="button"
+                    className="shrink-0 text-xs text-fumaca underline-offset-4 hover:text-creme hover:underline"
+                    onClick={() => {
+                      const ids = doPreparo.map((i) => i.id);
+                      const todos = marcados === doPreparo.length;
+                      mudar({
+                        selecionados: todos
+                          ? orcamento.selecionados.filter((s) => !ids.includes(s))
+                          : [...new Set([...orcamento.selecionados, ...ids])],
+                      });
+                    }}
+                  >
+                    {marcados}/{doPreparo.length} · {marcados === doPreparo.length ? 'tirar tudo' : 'marcar tudo'}
+                  </button>
+                </div>
                 <div className="mt-3 space-y-2">
-                  {orcamento.itens
-                    .filter((i) => i.categoria === categoria)
+                  {doPreparo
                     .map((item) => {
                       const marcado = orcamento.selecionados.includes(item.id);
                       const linha = resultado.linhas.find((l) => l.item.id === item.id);
@@ -304,7 +327,8 @@ export default function EditorDeOrcamento({
                     })}
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         )}
 

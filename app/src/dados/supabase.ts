@@ -5,6 +5,7 @@ import type {
   Item,
   Orcamento,
   PapelDeServico,
+  Perfil,
   Servico,
   Situacao,
 } from '../dominio/tipos';
@@ -468,6 +469,39 @@ export const repositorioSupabase: Repositorio = {
   async removerFaixaEtaria(id) {
     const { error } = await supabase.from('faixas_etarias').update({ ativo: false }).eq('id', id);
     if (error) throw error;
+  },
+
+  async listarPerfis(): Promise<Perfil[]> {
+    // select('*') de proposito: a coluna `email` so existe depois da migration
+    // de acesso. Sem ela a tela cai no nome, em vez de quebrar a consulta.
+    const { data, error } = await supabase.from('perfis').select('*').order('criado_em');
+    if (error) throw error;
+    return (data ?? []).map((p) => ({
+      id: p.id as string,
+      nome: (p.nome as string) || 'sem nome',
+      email: (p.email as string) ?? '',
+      telefone: (p.telefone as string) ?? '',
+      papel: p.papel as Perfil['papel'],
+      aprovado: p.aprovado as boolean,
+      criadoEm: p.criado_em as string,
+    }));
+  },
+
+  async definirAcesso(id, aprovado) {
+    const { error } = await supabase.from('perfis').update({ aprovado }).eq('id', id);
+    if (error) throw error;
+  },
+
+  async definirPapel(id, papel) {
+    const { error } = await supabase.from('perfis').update({ papel }).eq('id', id);
+    if (error) throw error;
+  },
+
+  async souDono() {
+    // Pergunta ao banco, nao a tela: e a mesma funcao que as policies avaliam.
+    const { data, error } = await supabase.rpc('e_dono');
+    if (error) return false;
+    return data === true;
   },
 
   async listarMembros() {

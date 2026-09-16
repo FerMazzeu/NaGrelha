@@ -1,4 +1,4 @@
-import type { Escala, FaixaEtaria, Item, Membro, Orcamento, Servico } from '../dominio/tipos';
+import type { Escala, FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from '../dominio/tipos';
 
 /**
  * A porta de entrada dos dados.
@@ -28,6 +28,12 @@ export interface Repositorio {
   salvarFaixaEtaria(faixa: FaixaEtaria): Promise<void>;
   criarFaixaEtaria(faixa: Omit<FaixaEtaria, 'id'>): Promise<FaixaEtaria>;
   removerFaixaEtaria(id: string): Promise<void>;
+
+  /** Quem tem login, inclusive quem ainda esta pendente de liberacao. */
+  listarPerfis(): Promise<Perfil[]>;
+  definirAcesso(id: string, aprovado: boolean): Promise<void>;
+  definirPapel(id: string, papel: Perfil['papel']): Promise<void>;
+  souDono(): Promise<boolean>;
 
   listarMembros(): Promise<Membro[]>;
   salvarMembro(membro: Membro): Promise<void>;

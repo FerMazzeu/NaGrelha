@@ -82,7 +82,10 @@ export function calcular(orcamento: Orcamento): Resultado {
     return { item, servido, comprar, custo };
   });
 
-  const carnes = linhas.filter((l) => l.item.categoria === 'carne');
+  // So carne vendida por quilo entra na gramatura.
+  // Hamburguer e vendido por unidade, e somar "1 unidade" num total em gramas
+  // faria a promessa do site ("X g de carne por pessoa") mentir por item.
+  const carnes = linhas.filter((l) => l.item.categoria === 'carne' && l.item.unidade === 'kg');
   const carnePorPessoa = pessoas > 0 ? carnes.reduce((s, l) => s + l.servido, 0) / pessoas : 0;
   const carneCrua = carnes.reduce((s, l) => s + l.comprar, 0) / 1000;
 
@@ -160,14 +163,13 @@ export function calcular(orcamento: Orcamento): Resultado {
  * por pessoa", depois se distribui entre picanha, costela e linguiça.
  */
 export function redistribuirCarnes(itens: Item[], selecionados: string[], metaPorPessoa: number): Item[] {
-  const carnesEscolhidas = itens.filter((i) => i.categoria === 'carne' && selecionados.includes(i.id));
-  const atual = carnesEscolhidas.reduce((s, i) => s + i.porPessoa, 0);
+  // Mesmo recorte da gramatura: so carne por quilo. Reescalar "1 hamburguer"
+  // por um fator de gramas daria meio hamburguer por pessoa.
+  const entra = (i: Item) => i.categoria === 'carne' && i.unidade === 'kg' && selecionados.includes(i.id);
+
+  const atual = itens.filter(entra).reduce((s, i) => s + i.porPessoa, 0);
   if (atual <= 0 || metaPorPessoa <= 0) return itens;
 
   const fator = metaPorPessoa / atual;
-  return itens.map((i) =>
-    i.categoria === 'carne' && selecionados.includes(i.id)
-      ? { ...i, porPessoa: Math.round(i.porPessoa * fator) }
-      : i,
-  );
+  return itens.map((i) => (entra(i) ? { ...i, porPessoa: Math.round(i.porPessoa * fator) } : i));
 }

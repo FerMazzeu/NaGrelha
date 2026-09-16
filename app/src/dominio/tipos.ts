@@ -129,6 +129,22 @@ export type FaixaNoEvento = {
   quantidade: number;
 };
 
+/**
+ * Quem tem login no app.
+ *
+ * `aprovado` e o que a RLS olha: perfil pendente enxerga zero linha de
+ * negocio, independente do que a tela mostre.
+ */
+export type Perfil = {
+  id: string;
+  nome: string;
+  email: string;
+  telefone: string;
+  papel: 'dono' | 'equipe';
+  aprovado: boolean;
+  criadoEm: string;
+};
+
 export type Membro = {
   id: string;
   nome: string;

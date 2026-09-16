@@ -36,9 +36,16 @@ const alvos = [
   { arq: '08.jpg', nome: 'alan', w: 1100, h: 1375, focoY: 0.3 },
   { arq: '29.jpg', nome: 'erica', w: 1100, h: 1375, focoY: 0.3 },
   { arq: '18.jpg', nome: 'erica-ambiente', w: 1200, h: 900, focoY: 0.45 },
-  { arq: '27.jpg', nome: 'andre', w: 1100, h: 1375, focoY: 0.25 },
+  // 16:10 e nao retrato: o cartao do Andre e deitado, e gerar retrato fazia o
+  // CSS recortar a faixa do meio e cortar o rosto fora. focoY baixo porque a
+  // cabeca dele esta no topo do quadro.
+  { arq: '27.jpg', nome: 'andre', w: 1440, h: 900, focoY: 0.02 },
   { arq: '37.jpg', nome: 'equipe', w: 1600, h: 1000, focoY: 0.35 },
-  { arq: '04.jpg', nome: 'equipe-costas', w: 1600, h: 900, focoY: 0.45 },
+  { arq: '04.jpg', nome: 'equipe-costas', w: 1440, h: 900, focoY: 0.45 },
+  // Foto que o proprio cliente mandou como sendo a Isabelle. Mesmo enquadramento
+  // deitado do cartao do Andre, com o foco no alto porque ela esta de corpo
+  // inteiro e o rosto fica no primeiro quinto do quadro.
+  { arq: '19.jpg', nome: 'isabelle', w: 1440, h: 900, focoY: 0.05 },
 
   // cardapio
   // cardapio. O primeiro cartão é largo no layout, então recebe uma imagem

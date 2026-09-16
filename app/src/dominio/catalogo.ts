@@ -67,3 +67,23 @@ export const EXTRAS_SUGERIDOS = [
 export const MARGEM_PADRAO = 0;
 export const FATOR_CARVAO_PADRAO = 0.5;
 export const PRECO_CARVAO_PADRAO = 5.5;
+
+/**
+ * Agrupa itens pelo preparo a que pertencem.
+ *
+ * "Separar as matérias-primas por prato", nas palavras do Alan. É como a
+ * planilha dele sempre foi e como a compra acontece: quatro linhas de cheiro
+ * verde em preparos diferentes não são duplicata, são quatro compras.
+ *
+ * A ordem dos grupos segue a ordem em que os itens aparecem, que é a ordem do
+ * catálogo. Item sem preparo cai no rótulo da categoria.
+ */
+export function agruparPorPreparo<T extends { grupo: string; categoria: Categoria }>(itens: T[]) {
+  const grupos = new Map<string, T[]>();
+  for (const item of itens) {
+    const chave = item.grupo || ROTULO_CATEGORIA[item.categoria];
+    if (!grupos.has(chave)) grupos.set(chave, []);
+    grupos.get(chave)!.push(item);
+  }
+  return [...grupos.entries()];
+}

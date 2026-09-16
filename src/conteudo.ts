@@ -150,10 +150,11 @@ export const equipe = {
     {
       foto: 'erica',
       nome: 'Érica',
-      papel: 'Confeitaria e ambientação',
+      papel: 'Atendimento, ambientação e confeitaria',
       paragrafos: [
-        'Enquanto Alan comanda a brasa, Érica eleva a experiência com a sua paixão pela confeitaria. Com olhar apurado, ela cria sobremesas que fecham o churrasco e se destacam sozinhas.',
-        'Cada doce é preparado com ingrediente fresco e carinho, garantindo um final inesquecível para a celebração.',
+        'Érica é quem atende você desde o primeiro contato. É com ela que sai o orçamento, o cardápio fechado e a data reservada, e é ela que acompanha cada detalhe até o dia do evento.',
+        'Ela também cuida da ambientação, para o espaço estar pronto e acolhedor quando o primeiro convidado chegar.',
+        'E fecha a celebração com a confeitaria. Cada doce é preparado com ingrediente fresco e carinho, para a festa terminar na nota mais doce.',
       ],
     },
   ],
@@ -161,7 +162,7 @@ export const equipe = {
     foto: 'erica-ambiente',
     titulo: 'Preparação da festa, do começo ao fim',
     paragrafos: [
-      'Além da confeitaria, Érica também cuida da preparação do ambiente, com os detalhes que transformam o evento em uma experiência mais bonita, organizada e acolhedora.',
+      'Além do atendimento, Érica também cuida da preparação do ambiente, com os detalhes que transformam o evento em uma experiência mais bonita, organizada e acolhedora.',
       'Ela auxilia na escolha e organização do local, mesas, cadeiras, toalhas, decoração de mesa e ornamentação, trazendo harmonia e praticidade para cada etapa da celebração.',
     ],
   },
@@ -174,7 +175,7 @@ export const equipe = {
         'Ao lado do Alan, André é presença fundamental na preparação e na execução do churrasco. Com dedicação e responsabilidade, garante que cada corte e cada detalhe saiam com excelência.',
     },
     {
-      foto: 'equipe-costas',
+      foto: 'isabelle',
       nome: 'Isabelle',
       papel: 'Organização e detalhes',
       texto:

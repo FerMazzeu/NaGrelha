@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
+import { agruparPorPreparo, CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
 import type { Categoria, Item } from '../dominio/tipos';
 import { casaBusca, inteiro, real } from '../formato';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
@@ -66,6 +66,20 @@ export default function Catalogo({
               aoMudar={(v) => setNovo({ ...novo, nome: v })}
               placeholder="Cupim, tulipa de frango, pão francês"
             />
+          </Campo>
+
+          <Campo rotulo="Preparo" dica="O prato a que este item pertence. Itens do mesmo preparo ficam juntos na compra.">
+            <CampoTexto
+              valor={novo.grupo}
+              aoMudar={(v) => setNovo({ ...novo, grupo: v })}
+              placeholder="Churrasco, Maionese, Hamburguer na grelha"
+              list="preparos"
+            />
+            <datalist id="preparos">
+              {[...new Set(itens.map((i) => i.grupo).filter(Boolean))].map((g) => (
+                <option key={g} value={g} />
+              ))}
+            </datalist>
           </Campo>
 
           <Campo rotulo="Categoria">
@@ -160,22 +174,23 @@ export default function Catalogo({
         </p>
       )}
 
+      {/* Por preparo, nao por categoria: e assim que a compra acontece. */}
       <div className="mt-6 space-y-8">
-        {CATEGORIAS.map((categoria) => {
-          const doGrupo = encontrados.filter((i) => i.categoria === categoria);
-          if (!doGrupo.length) return null;
-
-          return (
-            <section key={categoria}>
-              <h2 className="titulo text-lg text-dourado">{ROTULO_CATEGORIA[categoria]}</h2>
-              <div className="mt-3 space-y-3">
-                {doGrupo.map((item) => (
-                  <LinhaDeItem key={item.id} item={item} aoSalvar={aoSalvar} aoRemover={aoRemover} />
-                ))}
-              </div>
-            </section>
-          );
-        })}
+        {agruparPorPreparo(encontrados).map(([preparo, itens]) => (
+          <section key={preparo}>
+            <div className="flex items-baseline justify-between gap-3">
+              <h2 className="titulo text-lg text-dourado">{preparo}</h2>
+              <span className="shrink-0 text-xs text-fumaca">
+                {itens.length} {itens.length === 1 ? 'item' : 'itens'}
+              </span>
+            </div>
+            <div className="mt-3 space-y-3">
+              {itens.map((item) => (
+                <LinhaDeItem key={item.id} item={item} aoSalvar={aoSalvar} aoRemover={aoRemover} />
+              ))}
+            </div>
+          </section>
+        ))}
       </div>
     </div>
   );
@@ -200,6 +215,9 @@ function LinhaDeItem({
   return (
     <div className="cartao p-4">
       <div className="flex items-center gap-2">
+        <span className="shrink-0 rounded-full border border-borda px-2 py-1 text-[0.65rem] text-fumaca">
+          {ROTULO_CATEGORIA[item.categoria]}
+        </span>
         <CampoTexto
           valor={rascunho.nome}
           aoMudar={(v) => setRascunho({ ...rascunho, nome: v })}

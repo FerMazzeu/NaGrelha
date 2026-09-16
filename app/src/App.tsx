@@ -10,7 +10,7 @@ import ListaDeOrcamentos from './componentes/ListaDeOrcamentos';
 import { repositorio } from './dados/supabase';
 import { FATOR_CARVAO_PADRAO, MARGEM_PADRAO, PRECO_CARVAO_PADRAO, SELECAO_PADRAO } from './dominio/catalogo';
 import { valorSugerido } from './dominio/calculo';
-import type { FaixaEtaria, Item, Membro, Orcamento, Servico } from './dominio/tipos';
+import type { FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from './dominio/tipos';
 import { novoId } from './formato';
 import { supabase } from './integrations/supabase/client';
 import { Calendario, Faisca, Lista, Pessoas, Recibo } from './componentes/Icones';
@@ -81,6 +81,8 @@ export default function App() {
   const [catalogo, setCatalogo] = useState<Item[]>([]);
   const [membros, setMembros] = useState<Membro[]>([]);
   const [servicos, setServicos] = useState<Servico[]>([]);
+  const [perfis, setPerfis] = useState<Perfil[]>([]);
+  const [souDono, setSouDono] = useState(false);
   const [faixas, setFaixas] = useState<FaixaEtaria[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
@@ -111,18 +113,22 @@ export default function App() {
       setAprovado(liberado);
       if (!liberado) return;
 
-      const [o, c, m, sv, fx] = await Promise.all([
+      const [o, c, m, sv, fx, pf, dono] = await Promise.all([
         repositorio.listarOrcamentos(),
         repositorio.lerCatalogo(),
         repositorio.listarMembros(),
         repositorio.lerServicos(),
         repositorio.lerFaixasEtarias(),
+        repositorio.listarPerfis(),
+        repositorio.souDono(),
       ]);
       setOrcamentos(o);
       setCatalogo(c);
       setMembros(m);
       setServicos(sv);
       setFaixas(fx);
+      setPerfis(pf);
+      setSouDono(dono);
     } catch (e) {
       setErro(e instanceof Error ? e.message : String(e));
     } finally {
@@ -258,6 +264,17 @@ export default function App() {
           {aba === 'equipe' && (
             <Equipe
               membros={membros}
+              perfis={perfis}
+              meuId={sessao.user.id}
+              souDono={souDono}
+              aoLiberar={async (id, aprovado) => {
+                setPerfis((a) => a.map((p) => (p.id === id ? { ...p, aprovado } : p)));
+                await repositorio.definirAcesso(id, aprovado);
+              }}
+              aoMudarPapel={async (id, papel) => {
+                setPerfis((a) => a.map((p) => (p.id === id ? { ...p, papel } : p)));
+                await repositorio.definirPapel(id, papel);
+              }}
               aoCriar={async (m) => {
                 const criado = await repositorio.criarMembro(m);
                 setMembros((a) => [...a, criado]);

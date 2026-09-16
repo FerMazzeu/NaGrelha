@@ -218,6 +218,25 @@ describe('cálculo do orçamento', () => {
     expect(r.custoTotal).toBe(0);
   });
 
+  it('carne vendida por unidade nao entra na gramatura em gramas', () => {
+    const hamburguer: Item = {
+      id: 'h',
+      nome: 'Hambúrguer artesanal',
+      grupo: 'Hamburguer na grelha',
+      categoria: 'carne',
+      unidade: 'un',
+      porPessoa: 1,
+      rendimento: 1,
+      preco: 8,
+    };
+    const r = calcular(orcamentoDe({ itens: [picanha, hamburguer], selecionados: ['picanha', 'h'] }));
+    // so a picanha conta: 100 g no prato, e nao 101
+    expect(r.carnePorPessoa).toBe(100);
+    expect(r.carneCrua).toBe(2);
+    // mas o custo do hamburguer continua entrando
+    expect(r.custoItens).toBeCloseTo(200 + 10 * 8);
+  });
+
   it('trata aproveitamento zerado como 1 em vez de estourar', () => {
     const r = calcular(orcamentoDe({ itens: [{ ...picanha, rendimento: 0 }] }));
     expect(r.linhas[0].comprar).toBe(1000);
@@ -239,6 +258,17 @@ describe('redistribuir carnes', () => {
 
   it('não mexe em guarnição', () => {
     expect(redistribuirCarnes(itens, ['a', 'b', 'c'], 300).find((i) => i.id === 'c')!.porPessoa).toBe(70);
+  });
+
+  it('não reescala carne vendida por unidade', () => {
+    const comHamburguer: Item[] = [
+      { ...picanha, id: 'a', porPessoa: 100 },
+      { ...picanha, id: 'h', unidade: 'un', porPessoa: 1 },
+    ];
+    const novo = redistribuirCarnes(comHamburguer, ['a', 'h'], 300);
+    expect(novo.find((i) => i.id === 'a')!.porPessoa).toBe(300);
+    // continua 1 hamburguer por pessoa, e nao 3
+    expect(novo.find((i) => i.id === 'h')!.porPessoa).toBe(1);
   });
 
   it('devolve tudo intacto quando não há carne selecionada', () => {
