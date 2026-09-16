@@ -93,6 +93,14 @@ export type Servico = {
   valorPadrao: number;
   usaFaixa: boolean;
   faixas: FaixaDeCache[];
+  /**
+   * Percentual sobre o total do orçamento. Zero significa valor fixo.
+   *
+   * É como o imposto funciona de verdade: o Alan paga 7% do que cobra, e não
+   * 7% do que gasta. Isso é circular (o imposto entra no total sobre o qual
+   * ele é calculado), e `calcular` resolve a circularidade em vez de aproximar.
+   */
+  percentual: number;
 };
 
 /** Uma linha de serviço dentro de um orçamento. */
@@ -105,6 +113,8 @@ export type ServicoDoEvento = {
   pessoa: string;
   quantidade: number;
   valor: number;
+  /** Percentual do total. Zero usa `quantidade x valor`. */
+  percentual: number;
 };
 
 /**
@@ -142,6 +152,37 @@ export type Perfil = {
   telefone: string;
   papel: 'dono' | 'equipe';
   aprovado: boolean;
+  criadoEm: string;
+};
+
+/** Uma conversa do assistente. O histórico da barra lateral. */
+export type Conversa = {
+  id: string;
+  titulo: string;
+  eventoId: string | null;
+  atualizadoEm: string;
+};
+
+/**
+ * Arquivo que a pessoa mandou junto da mensagem: foto de referencia, audio
+ * gravado, planilha em texto.
+ *
+ * `caminho` e a posicao no bucket privado, e nunca uma URL: link assinado
+ * expira, entao ele e pedido na hora de mostrar.
+ */
+export type Anexo = {
+  caminho: string;
+  mime: string;
+  nome: string;
+};
+
+export type MensagemSalva = {
+  id: string;
+  papel: 'user' | 'assistant';
+  conteudo: string;
+  /** Caminho no bucket quando a mensagem trouxe imagem. */
+  imagemUrl: string | null;
+  anexos: Anexo[];
   criadoEm: string;
 };
 

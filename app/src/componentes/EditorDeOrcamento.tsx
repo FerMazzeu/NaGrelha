@@ -763,6 +763,12 @@ function ServicosDoEvento({
         <p className="mt-2 text-sm text-fumaca">
           Equipe, frete, imposto e taxas. Entra no preço junto com as compras.
         </p>
+        {orcamento.servicos.some((s) => s.percentual > 0) && (
+          <p className="mt-2 text-xs text-fumaca">
+            O imposto é calculado sobre o total cobrado, e não sobre o custo. Por isso ele sobe um
+            pouco quando você acrescenta qualquer outra coisa ao orçamento.
+          </p>
+        )}
       </div>
 
       <div className="space-y-2">
@@ -783,35 +789,72 @@ function ServicosDoEvento({
               </button>
             </div>
 
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              <Campo rotulo="Quem">
-                <CampoTexto
-                  valor={s.pessoa}
-                  aoMudar={(v) => atualizar(s.id, { pessoa: v })}
-                  placeholder="Nome"
-                  aria-label={`Quem faz ${s.nome}`}
-                />
-              </Campo>
-              <Campo rotulo={s.papel === 'frete' ? 'Km' : 'Qtd'}>
-                <CampoNumero
-                  valor={s.quantidade}
-                  aoMudar={(v) => atualizar(s.id, { quantidade: v })}
-                  aria-label={`Quantidade de ${s.nome}`}
-                />
-              </Campo>
-              <Campo rotulo="Valor">
-                <CampoNumero
-                  valor={s.valor}
-                  aoMudar={(v) => atualizar(s.id, { valor: v })}
-                  sufixo="R$"
-                  aria-label={`Valor de ${s.nome}`}
-                />
-              </Campo>
-            </div>
+            {/*
+              Serviço percentual não tem quantidade nem valor: ele é uma fração
+              do total. Mostrar os três campos juntos convidaria a preencher o
+              valor à mão e achar que aquilo manda em alguma coisa.
+            */}
+            {s.percentual > 0 ? (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                <Campo rotulo="Quem">
+                  <CampoTexto
+                    valor={s.pessoa}
+                    aoMudar={(v) => atualizar(s.id, { pessoa: v })}
+                    placeholder="Nome"
+                    aria-label={`Quem faz ${s.nome}`}
+                  />
+                </Campo>
+                <Campo rotulo="Percentual">
+                  <CampoNumero
+                    valor={s.percentual}
+                    aoMudar={(v) => atualizar(s.id, { percentual: v })}
+                    sufixo="%"
+                    aria-label={`Percentual de ${s.nome}`}
+                  />
+                </Campo>
+              </div>
+            ) : (
+              <div className="mt-2 grid grid-cols-3 gap-2">
+                <Campo rotulo="Quem">
+                  <CampoTexto
+                    valor={s.pessoa}
+                    aoMudar={(v) => atualizar(s.id, { pessoa: v })}
+                    placeholder="Nome"
+                    aria-label={`Quem faz ${s.nome}`}
+                  />
+                </Campo>
+                <Campo rotulo={s.papel === 'frete' ? 'Km' : 'Qtd'}>
+                  <CampoNumero
+                    valor={s.quantidade}
+                    aoMudar={(v) => atualizar(s.id, { quantidade: v })}
+                    aria-label={`Quantidade de ${s.nome}`}
+                  />
+                </Campo>
+                <Campo rotulo="Valor">
+                  <CampoNumero
+                    valor={s.valor}
+                    aoMudar={(v) => atualizar(s.id, { valor: v })}
+                    sufixo="R$"
+                    aria-label={`Valor de ${s.nome}`}
+                  />
+                </Campo>
+              </div>
+            )}
 
             <p className="mt-2 text-right text-sm text-fumaca">
-              {inteiro(s.quantidade)} x {real(s.valor)} ={' '}
-              <strong className="text-creme">{real(s.quantidade * s.valor)}</strong>
+              {s.percentual > 0 ? (
+                <>
+                  {decimal(s.percentual)}% do total ={' '}
+                  <strong className="text-creme">
+                    {real(resultado.servicos.find((x) => x.servico.id === s.id)?.total ?? 0)}
+                  </strong>
+                </>
+              ) : (
+                <>
+                  {inteiro(s.quantidade)} x {real(s.valor)} ={' '}
+                  <strong className="text-creme">{real(s.quantidade * s.valor)}</strong>
+                </>
+              )}
             </p>
           </div>
         ))}
@@ -846,6 +889,8 @@ function ServicosDoEvento({
                         // O cachê do Alan e da Érica muda com o tamanho do
                         // evento. O valor já vem da faixa certa.
                         valor: valorSugerido(s, convidados),
+                        // Imposto vem como percentual do catálogo; o resto vem zero.
+                        percentual: s.percentual,
                       },
                     ],
                   })

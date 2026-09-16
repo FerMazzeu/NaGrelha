@@ -1,9 +1,12 @@
 import { supabase } from '../integrations/supabase/client';
 import type {
   Apetite,
+  Conversa,
   FaixaEtaria,
   Item,
   Orcamento,
+  Anexo,
+  MensagemSalva,
   PapelDeServico,
   Perfil,
   Servico,
@@ -79,6 +82,7 @@ type LinhaServico = {
   pessoa: string;
   quantidade: number;
   valor: number;
+  percentual: number;
   ordem: number;
 };
 
@@ -130,6 +134,9 @@ function montar(
         pessoa: x.pessoa,
         quantidade: Number(x.quantidade),
         valor: Number(x.valor),
+        // `?? 0` porque orcamento gravado antes desta coluna existir nao tem
+        // o campo, e servico sem percentual e servico de valor fixo.
+        percentual: Number(x.percentual ?? 0),
       })),
     itens: ordenados.map(paraItem),
     selecionados: ordenados.filter((l) => l.selecionado).map((l) => l.item_id ?? l.id),
@@ -259,6 +266,7 @@ export const repositorioSupabase: Repositorio = {
           pessoa: x.pessoa,
           quantidade: x.quantidade,
           valor: x.valor,
+          percentual: x.percentual,
           ordem,
         })),
       );
@@ -362,6 +370,7 @@ export const repositorioSupabase: Repositorio = {
       papel: s.papel as PapelDeServico,
       valorPadrao: Number(s.valor_padrao),
       usaFaixa: s.usa_faixa as boolean,
+      percentual: Number(s.percentual ?? 0),
       faixas: (faixas ?? [])
         .filter((f) => f.servico_id === s.id)
         .map((f) => ({
@@ -380,6 +389,7 @@ export const repositorioSupabase: Repositorio = {
         papel: servico.papel,
         valor_padrao: servico.valorPadrao,
         usa_faixa: servico.usaFaixa,
+        percentual: servico.percentual,
       })
       .eq('id', servico.id);
     if (error) throw error;
@@ -407,6 +417,7 @@ export const repositorioSupabase: Repositorio = {
         papel: servico.papel,
         valor_padrao: servico.valorPadrao,
         usa_faixa: servico.usaFaixa,
+        percentual: servico.percentual,
         ordem: 999,
       })
       .select()
@@ -469,6 +480,77 @@ export const repositorioSupabase: Repositorio = {
   async removerFaixaEtaria(id) {
     const { error } = await supabase.from('faixas_etarias').update({ ativo: false }).eq('id', id);
     if (error) throw error;
+  },
+
+  async listarConversas(): Promise<Conversa[]> {
+    // A RLS ja limita as conversas ao dono delas, entao nao precisa filtrar
+    // por usuario aqui: filtrar na tela seria a segunda camada, nao a primeira.
+    const { data, error } = await supabase
+      .from('conversas')
+      .select('id, titulo, evento_id, atualizado_em')
+      .order('atualizado_em', { ascending: false });
+    if (error) throw error;
+    return (data ?? []).map((c) => ({
+      id: c.id as string,
+      titulo: (c.titulo as string) || 'Nova conversa',
+      eventoId: (c.evento_id as string | null) ?? null,
+      atualizadoEm: c.atualizado_em as string,
+    }));
+  },
+
+  async criarConversa(titulo, eventoId) {
+    const { data: sessao } = await supabase.auth.getUser();
+    if (!sessao.user) throw new Error('sessao expirada');
+
+    const { data, error } = await supabase
+      .from('conversas')
+      .insert({ usuario_id: sessao.user.id, titulo, evento_id: eventoId })
+      .select('id, titulo, evento_id, atualizado_em')
+      .single();
+    if (error) throw error;
+    return {
+      id: data.id as string,
+      titulo: data.titulo as string,
+      eventoId: (data.evento_id as string | null) ?? null,
+      atualizadoEm: data.atualizado_em as string,
+    };
+  },
+
+  async lerMensagens(conversaId): Promise<MensagemSalva[]> {
+    const { data, error } = await supabase
+      .from('mensagens')
+      .select('id, papel, conteudo, imagem_url, anexos, criado_em')
+      .eq('conversa_id', conversaId)
+      .order('criado_em');
+    if (error) throw error;
+    return (data ?? [])
+      .filter((m) => m.papel !== 'system')
+      .map((m) => ({
+        id: m.id as string,
+        papel: m.papel as 'user' | 'assistant',
+        conteudo: (m.conteudo as string) ?? '',
+        imagemUrl: (m.imagem_url as string | null) ?? null,
+        anexos: Array.isArray(m.anexos) ? (m.anexos as Anexo[]) : [],
+        criadoEm: m.criado_em as string,
+      }));
+  },
+
+  async renomearConversa(id, titulo) {
+    const { error } = await supabase.from('conversas').update({ titulo }).eq('id', id);
+    if (error) throw error;
+  },
+
+  async removerConversa(id) {
+    // as mensagens caem junto por ON DELETE CASCADE
+    const { error } = await supabase.from('conversas').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  async urlDaImagem(caminho) {
+    // O bucket e privado: a imagem so abre por link assinado, e ele expira.
+    // Por isso o link e pedido na hora de mostrar, e nao guardado no banco.
+    const { data } = await supabase.storage.from('midias').createSignedUrl(caminho, 60 * 60);
+    return data?.signedUrl ?? null;
   },
 
   async listarPerfis(): Promise<Perfil[]> {

@@ -1,3 +1,6 @@
 node_modules
 dist
 *.local
+
+# lixo do CLI do Supabase, criado so por rodar `npx supabase`
+supabase/.temp/

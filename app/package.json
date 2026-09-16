@@ -8,7 +8,9 @@
     "build": "tsc -p tsconfig.app.json && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "type-check": "tsc -p tsconfig.app.json --noEmit"
+    "type-check": "tsc -p tsconfig.app.json --noEmit",
+    "check-funcoes": "esbuild supabase/functions/*/index.ts --loader:.ts=ts --outdir=node_modules/.cache/funcoes",
+    "verificar": "npm run type-check && npm run check-funcoes && npm test"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.116.0",

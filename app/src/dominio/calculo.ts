@@ -94,16 +94,49 @@ export function calcular(orcamento: Orcamento): Resultado {
   const carvaoKg = Math.ceil(carneCrua * orcamento.fatorCarvao);
   const custoCarvao = carvaoKg * orcamento.precoCarvao;
 
-  // Serviço é a outra metade do orçamento: equipe, frete, imposto e caixa.
-  const servicos = orcamento.servicos.map((servico) => ({
-    servico,
-    total: Math.max(0, servico.quantidade) * Math.max(0, servico.valor),
-  }));
-  const custoServicos = servicos.reduce((s, x) => s + x.total, 0);
-
   const custoItens = linhas.reduce((s, l) => s + l.custo, 0);
   const custosExtras = orcamento.custosExtras.reduce((s, c) => s + (Number(c.valor) || 0), 0);
-  const custoTotal = custoItens + custoCarvao + custoServicos + custosExtras;
+
+  /*
+    Serviço é a outra metade do orçamento: equipe, frete, imposto e caixa.
+
+    Dois tipos, e a diferença não é cosmética. Serviço de valor fixo é
+    `quantidade x valor`. Serviço percentual, como o imposto, é uma fração do
+    TOTAL, e o total já inclui o próprio imposto. Somar 7% do custo por fora
+    erra para menos: quem cobra 100 e paga 7% de imposto fica com 93, não com
+    100, então o imposto de um orçamento de 100 é 7, e não 7% de 93.
+
+    A saída é dividir em vez de multiplicar. Com `base` sendo tudo que não é
+    percentual e `f` a soma das frações:
+
+        total = base / (1 - f)
+
+    e aí cada linha percentual vale `total x percentual`. A conta fecha exata:
+    base + f x total = base / (1 - f) = total.
+  */
+  const fixos = orcamento.servicos.filter((s) => !(s.percentual > 0));
+  const totalFixos = fixos.reduce(
+    (s, x) => s + Math.max(0, x.quantidade) * Math.max(0, x.valor),
+    0,
+  );
+
+  const base = custoItens + custoCarvao + custosExtras + totalFixos;
+  // Teto de 95% porque 100% ou mais faria o total explodir ou ficar negativo,
+  // e um dedo errado no campo de percentual não pode derrubar a tela.
+  const fracao = Math.min(
+    0.95,
+    orcamento.servicos.reduce((s, x) => s + Math.max(0, x.percentual) / 100, 0),
+  );
+  const custoTotal = base / (1 - fracao);
+
+  const servicos = orcamento.servicos.map((servico) => ({
+    servico,
+    total:
+      servico.percentual > 0
+        ? custoTotal * (Math.max(0, servico.percentual) / 100)
+        : Math.max(0, servico.quantidade) * Math.max(0, servico.valor),
+  }));
+  const custoServicos = servicos.reduce((s, x) => s + x.total, 0);
 
   // Markup sobre o custo. No modelo do cliente ele é zero, porque o que paga
   // o trabalho já está nas linhas de serviço, e imposto e caixa também.

@@ -147,13 +147,66 @@ describe('cálculo do orçamento', () => {
     const r = calcular(
       orcamentoDe({
         servicos: [
-          { id: 'a', servicoId: null, nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600 },
-          { id: 'b', servicoId: null, nome: 'Frete', papel: 'frete', pessoa: '', quantidade: 2, valor: 50 },
+          { id: 'a', servicoId: null, nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600, percentual: 0 },
+          { id: 'b', servicoId: null, nome: 'Frete', papel: 'frete', pessoa: '', quantidade: 2, valor: 50, percentual: 0 },
         ],
       }),
     );
     expect(r.custoServicos).toBe(700);
     expect(r.custoTotal).toBeCloseTo(900);
+  });
+
+  /*
+    O imposto do Alan e 7% sobre o total que ele cobra, e nao sobre o custo.
+    A diferenca e real: 7% de 900 sao 63, mas quem cobra 967,74 e paga 7%
+    disso fica com 900 limpos. Somar por fora deixaria 4,74 de buraco.
+  */
+  it('imposto percentual incide sobre o total, e nao sobre o custo', () => {
+    const r = calcular(
+      orcamentoDe({
+        servicos: [
+          { id: 'i', servicoId: null, nome: 'Imposto (DAS)', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 7 },
+        ],
+      }),
+    );
+
+    // Sem serviço fixo, a base é só o item: 200 de carne.
+    expect(r.custoTotal).toBeCloseTo(200 / 0.93, 6);
+    expect(r.custoServicos).toBeCloseTo(r.custoTotal * 0.07, 6);
+    // O que sobra depois do imposto é exatamente a base.
+    expect(r.custoTotal - r.custoServicos).toBeCloseTo(200, 6);
+  });
+
+  it('percentual e valor fixo convivem no mesmo orçamento', () => {
+    const r = calcular(
+      orcamentoDe({
+        servicos: [
+          { id: 'a', servicoId: null, nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600, percentual: 0 },
+          { id: 'i', servicoId: null, nome: 'Imposto (DAS)', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 7 },
+        ],
+      }),
+    );
+
+    const base = 200 + 600;
+    expect(r.custoTotal).toBeCloseTo(base / 0.93, 6);
+
+    const imposto = r.servicos.find((x) => x.servico.papel === 'imposto')!;
+    expect(imposto.total).toBeCloseTo(r.custoTotal * 0.07, 6);
+
+    // A soma das partes tem que dar o todo, sem sobra de centavo.
+    expect(r.custoItens + r.custoCarvao + r.custosExtras + r.custoServicos).toBeCloseTo(r.custoTotal, 6);
+  });
+
+  it('percentual absurdo não derruba a conta', () => {
+    const r = calcular(
+      orcamentoDe({
+        servicos: [
+          { id: 'i', servicoId: null, nome: 'Imposto', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 150 },
+        ],
+      }),
+    );
+    expect(Number.isFinite(r.custoTotal)).toBe(true);
+    expect(r.custoTotal).toBeGreaterThan(0);
   });
 
   it('a cobrança fecha com o preço, sem sobra nem falta', () => {
@@ -162,7 +215,7 @@ describe('cálculo do orçamento', () => {
         adultos: 20,
         faixas: [faixa('Até 5', 0, 4), faixa('6 a 10', 50, 6)],
         servicos: [
-          { id: 'a', servicoId: null, nome: 'Equipe', papel: 'equipe', pessoa: '', quantidade: 1, valor: 1000 },
+          { id: 'a', servicoId: null, nome: 'Equipe', papel: 'equipe', pessoa: '', quantidade: 1, valor: 1000, percentual: 0 },
         ],
       }),
     );

@@ -164,9 +164,15 @@ export async function montarPlanilha(orcamento: Orcamento, resultado: Resultado)
     const l = aba.getRow(linha++);
     l.getCell(1).value = `${x.servico.nome} (${ROTULO_PAPEL[x.servico.papel]})`;
     l.getCell(2).value = x.servico.pessoa;
-    l.getCell(3).value = x.servico.quantidade;
-    l.getCell(4).value = x.servico.valor;
-    l.getCell(4).numFmt = MOEDA;
+    if (x.servico.percentual > 0) {
+      // Imposto e uma fracao do total, nao quantidade vezes valor. Deixar os
+      // dois campos com 1 e R$ 0,00 ao lado de um total certo parece erro.
+      l.getCell(3).value = `${x.servico.percentual}%`;
+    } else {
+      l.getCell(3).value = x.servico.quantidade;
+      l.getCell(4).value = x.servico.valor;
+      l.getCell(4).numFmt = MOEDA;
+    }
     l.getCell(5).value = x.total;
     l.getCell(5).numFmt = MOEDA;
   }

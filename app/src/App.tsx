@@ -12,6 +12,7 @@ import { FATOR_CARVAO_PADRAO, MARGEM_PADRAO, PRECO_CARVAO_PADRAO, SELECAO_PADRAO
 import { valorSugerido } from './dominio/calculo';
 import type { FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from './dominio/tipos';
 import { novoId } from './formato';
+import { useGravacaoEnfileirada } from './gravacao';
 import { supabase } from './integrations/supabase/client';
 import { Calendario, Faisca, Lista, Pessoas, Recibo } from './componentes/Icones';
 
@@ -57,6 +58,7 @@ function orcamentoNovo(catalogo: Item[], servicos: Servico[], adultos = 30): Orc
         nome: s.nome,
         papel: s.papel,
         pessoa: '',
+        percentual: s.percentual,
         quantidade: 1,
         valor: valorSugerido(s, adultos),
       })),
@@ -140,7 +142,18 @@ export default function App() {
     if (sessao) carregar();
   }, [sessao, carregar]);
 
-  const salvar = async (o: Orcamento) => {
+  /**
+   * Gravar o orcamento inteiro e apagar as linhas de item e reescrever todas.
+   * Por isso passa por fila: duas gravacoes ao mesmo tempo apagavam as duas
+   * antes de escrever as duas, e o cardapio saia em dobro.
+   */
+  const { agendar, agora: gravarAgora } = useGravacaoEnfileirada<Orcamento>(
+    (o) => repositorio.salvarOrcamento(o),
+    setErro,
+  );
+
+  /** A tela muda na hora; o banco recebe pouco depois, uma gravacao por vez. */
+  const lembrar = (o: Orcamento) =>
     setOrcamentos((atuais) => {
       const i = atuais.findIndex((x) => x.id === o.id);
       if (i < 0) return [o, ...atuais];
@@ -148,6 +161,20 @@ export default function App() {
       copia[i] = o;
       return copia;
     });
+
+  const salvar = (o: Orcamento) => {
+    lembrar(o);
+    agendar(o);
+  };
+
+  /**
+   * Grava sem esperar a fila.
+   *
+   * Criar e duplicar usam isto: um orcamento que so existe na tela some se a
+   * aba fechar antes da fila rodar, e a pessoa acha que perdeu o trabalho.
+   */
+  const salvarJa = async (o: Orcamento) => {
+    lembrar(o);
     try {
       await repositorio.salvarOrcamento(o);
     } catch (e) {
@@ -189,7 +216,11 @@ export default function App() {
         servicosDisponiveis={servicos}
         faixasDisponiveis={faixas}
         aoMudar={salvar}
-        aoVoltar={() => setAbertoId(null)}
+        aoVoltar={() => {
+          // Sair da tela nao pode deixar a ultima edicao esperando o relogio.
+          gravarAgora();
+          setAbertoId(null);
+        }}
         aoRemover={async () => {
           setOrcamentos((a) => a.filter((o) => o.id !== aberto.id));
           setAbertoId(null);
@@ -233,7 +264,7 @@ export default function App() {
               aoAbrir={setAbertoId}
               aoCriar={async () => {
                 const o = orcamentoNovo(catalogo, servicos);
-                await salvar(o);
+                await salvarJa(o);
                 setAbertoId(o.id);
               }}
               aoRemover={async (id) => {
@@ -253,7 +284,7 @@ export default function App() {
                   criadoEm: agora,
                   atualizadoEm: agora,
                 };
-                await salvar(copia);
+                await salvarJa(copia);
                 setAbertoId(copia.id);
               }}
             />
@@ -308,7 +339,16 @@ export default function App() {
             />
           )}
 
-          {aba === 'assistente' && <Chat eventoAberto={null} />}
+          {/*
+            O assistente fica montado o tempo todo, escondido pelo `hidden`.
+
+            Desmontar ele ao trocar de aba matava a resposta no meio: a pessoa
+            perguntava, ia ver o orçamento, voltava, e não tinha nada. Com ele
+            montado, a geração continua enquanto você usa o resto do app.
+          */}
+          <div hidden={aba !== 'assistente'}>
+            <Chat eventoAberto={null} />
+          </div>
         </>
       )}
 

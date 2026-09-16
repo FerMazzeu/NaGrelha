@@ -1,4 +1,14 @@
-import type { Escala, FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from '../dominio/tipos';
+import type {
+  Conversa,
+  Escala,
+  FaixaEtaria,
+  Item,
+  Membro,
+  MensagemSalva,
+  Orcamento,
+  Perfil,
+  Servico,
+} from '../dominio/tipos';
 
 /**
  * A porta de entrada dos dados.
@@ -28,6 +38,15 @@ export interface Repositorio {
   salvarFaixaEtaria(faixa: FaixaEtaria): Promise<void>;
   criarFaixaEtaria(faixa: Omit<FaixaEtaria, 'id'>): Promise<FaixaEtaria>;
   removerFaixaEtaria(id: string): Promise<void>;
+
+  /** Conversas do assistente, do usuário logado. */
+  listarConversas(): Promise<Conversa[]>;
+  criarConversa(titulo: string, eventoId: string | null): Promise<Conversa>;
+  lerMensagens(conversaId: string): Promise<MensagemSalva[]>;
+  renomearConversa(id: string, titulo: string): Promise<void>;
+  removerConversa(id: string): Promise<void>;
+  /** Link temporário para uma imagem guardada no bucket privado. */
+  urlDaImagem(caminho: string): Promise<string | null>;
 
   /** Quem tem login, inclusive quem ainda esta pendente de liberacao. */
   listarPerfis(): Promise<Perfil[]>;

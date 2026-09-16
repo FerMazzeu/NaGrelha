@@ -124,3 +124,48 @@ export function Lupa(props: Props) {
     </Base>
   );
 }
+
+export function Fechar(props: Props) {
+  return (
+    <Base {...props}>
+      <path d="m6 6 12 12M18 6 6 18" />
+    </Base>
+  );
+}
+
+export function Clipe(props: Props) {
+  return (
+    <Base {...props}>
+      <path d="M21 11.5 12.5 20a5 5 0 0 1-7-7l8-8a3.4 3.4 0 0 1 4.8 4.8l-8 8a1.8 1.8 0 0 1-2.5-2.5l7.4-7.4" />
+    </Base>
+  );
+}
+
+export function Microfone(props: Props) {
+  return (
+    <Base {...props}>
+      <rect x="9" y="2.5" width="6" height="11" rx="3" />
+      <path d="M5.5 11a6.5 6.5 0 0 0 13 0" />
+      <path d="M12 17.5V21" />
+    </Base>
+  );
+}
+
+export function Som(props: Props) {
+  return (
+    <Base {...props}>
+      <path d="M11 5 6.5 9H3v6h3.5L11 19z" />
+      <path d="M15.5 9.5a3.5 3.5 0 0 1 0 5" />
+      <path d="M18 7a7 7 0 0 1 0 10" />
+    </Base>
+  );
+}
+
+export function Arquivo(props: Props) {
+  return (
+    <Base {...props}>
+      <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+      <path d="M14 3v5h5" />
+    </Base>
+  );
+}
