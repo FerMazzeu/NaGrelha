@@ -32,6 +32,7 @@ type LinhaEvento = {
   local: string;
   observacoes: string;
   situacao: Situacao;
+  tipo_evento: 'aniversario' | 'casamento' | null;
   adultos: number;
   criancas: number;
   apetite: Apetite;
@@ -83,6 +84,7 @@ type LinhaServico = {
   quantidade: number;
   valor: number;
   percentual: number;
+  valor_manual: boolean;
   ordem: number;
 };
 
@@ -112,6 +114,9 @@ function montar(
     local: evento.local,
     observacoes: evento.observacoes,
     situacao: evento.situacao,
+    // Orcamento gravado antes desta coluna existir e aniversario, que era a
+    // unica tabela que havia.
+    tipoEvento: (evento.tipo_evento as 'aniversario' | 'casamento' | null) ?? 'aniversario',
     adultos: evento.adultos,
     apetite: evento.apetite,
     duracaoHoras: Number(evento.duracao_horas ?? 5),
@@ -137,6 +142,7 @@ function montar(
         // `?? 0` porque orcamento gravado antes desta coluna existir nao tem
         // o campo, e servico sem percentual e servico de valor fixo.
         percentual: Number(x.percentual ?? 0),
+        valorManual: Boolean(x.valor_manual ?? false),
       })),
     itens: ordenados.map(paraItem),
     selecionados: ordenados.filter((l) => l.selecionado).map((l) => l.item_id ?? l.id),
@@ -215,6 +221,7 @@ export const repositorioSupabase: Repositorio = {
       local: o.local,
       observacoes: o.observacoes,
       situacao: o.situacao,
+      tipo_evento: o.tipoEvento,
       adultos: o.adultos,
       // a coluna antiga vira o total, para relatorio antigo nao quebrar
       criancas: o.faixas.reduce((s, f) => s + f.quantidade, 0),
@@ -267,6 +274,7 @@ export const repositorioSupabase: Repositorio = {
           quantidade: x.quantidade,
           valor: x.valor,
           percentual: x.percentual,
+          valor_manual: x.valorManual,
           ordem,
         })),
       );
@@ -377,6 +385,7 @@ export const repositorioSupabase: Repositorio = {
           min: f.min_convidados as number,
           max: (f.max_convidados as number | null) ?? null,
           valor: Number(f.valor),
+          tipo: (f.tipo_evento as 'aniversario' | 'casamento' | null) ?? null,
         })),
     }));
   },
@@ -404,6 +413,7 @@ export const repositorioSupabase: Repositorio = {
           min_convidados: f.min,
           max_convidados: f.max,
           valor: f.valor,
+          tipo_evento: f.tipo,
         })),
       );
     }

@@ -19,6 +19,7 @@ const orcamento: Orcamento = {
   local: 'Varginha',
   observacoes: 'Tem uma convidada celíaca.',
   situacao: 'confirmado',
+  tipoEvento: 'aniversario',
   adultos: 30,
   faixas: [
     { id: 'f1', faixaId: 'f1', nome: 'Até 5 anos', percentual: 0, quantidade: 4 },
@@ -29,10 +30,10 @@ const orcamento: Orcamento = {
   itens,
   selecionados: ['a', 'b', 'c'],
   servicos: [
-    { id: 's1', servicoId: 's1', nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600, percentual: 0 },
-    { id: 's2', servicoId: 's2', nome: 'Organização (metrê)', papel: 'equipe', pessoa: 'Érica', quantidade: 1, valor: 600, percentual: 0 },
-    { id: 's3', servicoId: 's3', nome: 'Frete', papel: 'frete', pessoa: 'Eduardo', quantidade: 2, valor: 50, percentual: 0 },
-    { id: 's4', servicoId: 's4', nome: 'Imposto (DAS)', papel: 'imposto', pessoa: '', quantidade: 1, valor: 325, percentual: 0 },
+    { id: 's1', servicoId: 's1', nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600, percentual: 0 , valorManual: false },
+    { id: 's2', servicoId: 's2', nome: 'Organização (metrê)', papel: 'equipe', pessoa: 'Érica', quantidade: 1, valor: 600, percentual: 0 , valorManual: false },
+    { id: 's3', servicoId: 's3', nome: 'Frete', papel: 'frete', pessoa: 'Eduardo', quantidade: 2, valor: 50, percentual: 0 , valorManual: false },
+    { id: 's4', servicoId: 's4', nome: 'Imposto (DAS)', papel: 'imposto', pessoa: '', quantidade: 1, valor: 325, percentual: 0 , valorManual: false },
   ],
   custosExtras: [],
   margem: 0,

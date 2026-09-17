@@ -1,4 +1,4 @@
-import type { Apetite, FaixaDeCache, Item, Orcamento, Resultado, Servico } from './tipos';
+import type { Apetite, FaixaDeCache, Item, Orcamento, Resultado, Servico, TipoDeEvento } from './tipos';
 
 const FATOR_APETITE: Record<Apetite, number> = {
   leve: 0.85,
@@ -55,16 +55,40 @@ export function arredondarPreco(valor: number) {
  * É a tabela do rodapé da planilha: Alan e Érica cobram 500 até 30 convidados
  * e 1000 acima de 80. Faixa sem teto (`max` nulo) é a última.
  */
-export function valorDaFaixa(faixas: FaixaDeCache[], convidados: number, padrao: number) {
-  const achada = faixas.find(
-    (f) => convidados >= f.min && (f.max === null || convidados <= f.max),
-  );
-  return achada ? achada.valor : padrao;
+export function valorDaFaixa(
+  faixas: FaixaDeCache[],
+  convidados: number,
+  padrao: number,
+  tipo: TipoDeEvento | null = null,
+) {
+  const cabe = (f: FaixaDeCache) => convidados >= f.min && (f.max === null || convidados <= f.max);
+
+  // A faixa do tipo certo ganha da faixa geral. Assim uma tabela antiga, sem
+  // tipo, continua valendo para quem ainda não tem tabela própria.
+  const doTipo = faixas.find((f) => f.tipo === tipo && cabe(f));
+  if (doTipo) return doTipo.valor;
+
+  const geral = faixas.find((f) => f.tipo === null && cabe(f));
+  return geral ? geral.valor : padrao;
 }
 
-/** Valor sugerido de um serviço para um evento deste tamanho. */
-export function valorSugerido(servico: Servico, convidados: number) {
-  return servico.usaFaixa ? valorDaFaixa(servico.faixas, convidados, servico.valorPadrao) : servico.valorPadrao;
+/** Valor sugerido de um serviço para um evento deste tamanho e tipo. */
+export function valorSugerido(servico: Servico, convidados: number, tipo: TipoDeEvento | null = null) {
+  return servico.usaFaixa
+    ? valorDaFaixa(servico.faixas, convidados, servico.valorPadrao, tipo)
+    : servico.valorPadrao;
+}
+
+/**
+ * Descobre se o número de convidados caiu fora da tabela.
+ *
+ * Faixa que não existe faz o serviço cair no valor padrão em silêncio, e o
+ * orçamento sai com um cachê que não é o da tabela. Quem vê isso é a tela.
+ */
+export function faltaFaixa(servico: Servico, convidados: number, tipo: TipoDeEvento | null) {
+  if (!servico.usaFaixa || convidados <= 0) return false;
+  const cabe = (f: FaixaDeCache) => convidados >= f.min && (f.max === null || convidados <= f.max);
+  return !servico.faixas.some((f) => (f.tipo === tipo || f.tipo === null) && cabe(f));
 }
 
 export function calcular(orcamento: Orcamento): Resultado {

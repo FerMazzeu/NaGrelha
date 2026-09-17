@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { repositorio } from '../dados/supabase';
 import { agruparPorPreparo, EXTRAS_SUGERIDOS } from '../dominio/catalogo';
-import { calcular, redistribuirCarnes, totalDeConvidados, valorSugerido } from '../dominio/calculo';
+import { calcular, faltaFaixa, redistribuirCarnes, totalDeConvidados, valorSugerido } from '../dominio/calculo';
 import {
   ROTULO_PAPEL,
   ROTULO_SITUACAO,
+  ROTULO_TIPO_EVENTO,
   type Apetite,
   type Escala,
   type FaixaEtaria,
@@ -12,6 +13,7 @@ import {
   type Orcamento,
   type Servico,
   type Situacao,
+  type TipoDeEvento,
 } from '../dominio/tipos';
 import { decimal, inteiro, novoId, quantidade, real } from '../formato';
 import { exportarOrcamento } from '../excel';
@@ -123,6 +125,20 @@ export default function EditorDeOrcamento({
                 opcoes={(['orcado', 'confirmado', 'realizado', 'perdido'] as const).map((v) => ({
                   valor: v,
                   rotulo: ROTULO_SITUACAO[v],
+                }))}
+              />
+            </Campo>
+
+            <Campo
+              rotulo="Tipo de evento"
+              dica="Manda no cachê do Alan e da Érica: casamento e 15 anos pagam mais."
+            >
+              <Segmentado<TipoDeEvento>
+                valor={orcamento.tipoEvento}
+                aoMudar={(v) => mudar({ tipoEvento: v })}
+                opcoes={(['aniversario', 'casamento'] as const).map((v) => ({
+                  valor: v,
+                  rotulo: ROTULO_TIPO_EVENTO[v],
                 }))}
               />
             </Campo>
@@ -755,6 +771,55 @@ function ServicosDoEvento({
   const atualizar = (id: string, parcial: Partial<(typeof orcamento.servicos)[number]>) =>
     mudar({ servicos: orcamento.servicos.map((s) => (s.id === id ? { ...s, ...parcial } : s)) });
 
+  const catalogo = (id: string | null) => disponiveis.find((d) => d.id === id) ?? null;
+
+  /*
+    O cachê segue a tabela enquanto ninguém digitar por cima.
+
+    Antes o valor era calculado uma vez, na hora de adicionar o serviço, e
+    congelava ali. Com as tabelas novas do Alan indo até 300 convidados, isso
+    dava errado no uso normal: você põe o serviço com 30 pessoas, depois corrige
+    para 150, e o Alan continuava custando o preço de 30.
+
+    `valorManual` é o freio. Quem edita o campo de valor tira aquela linha do
+    automático, senão um desconto dado de propósito sumiria no próximo ajuste
+    de convidados.
+  */
+  const linhasDesatualizadas = orcamento.servicos.filter((linha) => {
+    if (linha.valorManual || linha.percentual > 0) return false;
+    const base = catalogo(linha.servicoId);
+    if (!base?.usaFaixa) return false;
+    return valorSugerido(base, convidados, orcamento.tipoEvento) !== linha.valor;
+  });
+
+  useEffect(() => {
+    if (!linhasDesatualizadas.length) return;
+    const novos = new Map(
+      linhasDesatualizadas.map((l) => [
+        l.id,
+        valorSugerido(catalogo(l.servicoId)!, convidados, orcamento.tipoEvento),
+      ]),
+    );
+    mudar({
+      servicos: orcamento.servicos.map((s) => (novos.has(s.id) ? { ...s, valor: novos.get(s.id)! } : s)),
+    });
+    // Roda quando o tamanho ou o tipo do evento muda. `mudar` e `orcamento`
+    // trocam de identidade a cada tecla, e entrariam em laço aqui.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [convidados, orcamento.tipoEvento, linhasDesatualizadas.length]);
+
+  /*
+    Convidados fora da tabela.
+
+    A tabela do casamento para em 199, porque as duas últimas faixas vieram
+    cortadas na foto do cliente. Sem este aviso o serviço cairia no valor
+    padrão em silêncio e a proposta sairia com um cachê que não é o dele.
+  */
+  const foraDaTabela = orcamento.servicos.filter((linha) => {
+    const base = catalogo(linha.servicoId);
+    return base ? faltaFaixa(base, convidados, orcamento.tipoEvento) : false;
+  });
+
   return (
     <div className="space-y-5">
       <div className="cartao p-4">
@@ -763,6 +828,15 @@ function ServicosDoEvento({
         <p className="mt-2 text-sm text-fumaca">
           Equipe, frete, imposto e taxas. Entra no preço junto com as compras.
         </p>
+        {foraDaTabela.length > 0 && (
+          <p className="mt-3 rounded-xl border border-brasa/50 bg-brasa/10 p-3 text-sm text-brasa-clara">
+            <strong>{inteiro(convidados)} convidados está fora da tabela</strong> de{' '}
+            {ROTULO_TIPO_EVENTO[orcamento.tipoEvento].toLowerCase()} para{' '}
+            {foraDaTabela.map((s) => s.nome).join(', ')}. O valor abaixo é o padrão, e não o da
+            tabela. Confira com o Alan antes de mandar a proposta.
+          </p>
+        )}
+
         {orcamento.servicos.some((s) => s.percentual > 0) && (
           <p className="mt-2 text-xs text-fumaca">
             O imposto é calculado sobre o total cobrado, e não sobre o custo. Por isso ele sobe um
@@ -833,7 +907,7 @@ function ServicosDoEvento({
                 <Campo rotulo="Valor">
                   <CampoNumero
                     valor={s.valor}
-                    aoMudar={(v) => atualizar(s.id, { valor: v })}
+                    aoMudar={(v) => atualizar(s.id, { valor: v, valorManual: true })}
                     sufixo="R$"
                     aria-label={`Valor de ${s.nome}`}
                   />
@@ -888,9 +962,10 @@ function ServicosDoEvento({
                         quantidade: 1,
                         // O cachê do Alan e da Érica muda com o tamanho do
                         // evento. O valor já vem da faixa certa.
-                        valor: valorSugerido(s, convidados),
+                        valor: valorSugerido(s, convidados, orcamento.tipoEvento),
                         // Imposto vem como percentual do catálogo; o resto vem zero.
                         percentual: s.percentual,
+                        valorManual: false,
                       },
                     ],
                   })

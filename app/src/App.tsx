@@ -40,6 +40,7 @@ function orcamentoNovo(catalogo: Item[], servicos: Servico[], adultos = 30): Orc
     local: '',
     observacoes: '',
     situacao: 'orcado',
+    tipoEvento: 'aniversario',
     adultos,
     faixas: [],
     apetite: 'normal',
@@ -59,6 +60,7 @@ function orcamentoNovo(catalogo: Item[], servicos: Servico[], adultos = 30): Orc
         papel: s.papel,
         pessoa: '',
         percentual: s.percentual,
+        valorManual: false,
         quantidade: 1,
         valor: valorSugerido(s, adultos),
       })),
@@ -335,6 +337,17 @@ export default function App() {
               aoRemover={async (id) => {
                 setCatalogo((a) => a.filter((i) => i.id !== id));
                 await repositorio.removerItem(id);
+              }}
+              servicos={servicos}
+              aoSalvarServico={async (servico) => {
+                // A tela mostra na hora; o banco recebe logo atrás. Tabela de
+                // cachê é editada aos poucos, campo a campo.
+                setServicos((a) => a.map((s) => (s.id === servico.id ? servico : s)));
+                try {
+                  await repositorio.salvarServico(servico);
+                } catch (e) {
+                  setErro(e instanceof Error ? e.message : String(e));
+                }
               }}
             />
           )}

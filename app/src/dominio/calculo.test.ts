@@ -3,10 +3,12 @@ import {
   arredondarCompra,
   arredondarPreco,
   calcular,
+  faltaFaixa,
   pessoasEquivalentes,
   redistribuirCarnes,
   totalDeConvidados,
   valorDaFaixa,
+  valorSugerido,
 } from './calculo';
 import type { Item, Orcamento } from './tipos';
 
@@ -39,6 +41,7 @@ function orcamentoDe(parcial: Partial<Orcamento> = {}): Orcamento {
     local: '',
     observacoes: '',
     situacao: 'orcado',
+    tipoEvento: 'aniversario',
     adultos: 10,
     faixas: [],
     apetite: 'normal',
@@ -113,10 +116,10 @@ describe('arredondamento', () => {
 describe('cachê por faixa de convidados', () => {
   // a tabela do rodapé da planilha do cliente
   const faixas = [
-    { min: 1, max: 30, valor: 500 },
-    { min: 31, max: 60, valor: 600 },
-    { min: 61, max: 80, valor: 800 },
-    { min: 81, max: null, valor: 1000 },
+    { min: 1, max: 30, valor: 500, tipo: null },
+    { min: 31, max: 60, valor: 600, tipo: null },
+    { min: 61, max: 80, valor: 800, tipo: null },
+    { min: 81, max: null, valor: 1000, tipo: null },
   ];
 
   it('pega a faixa certa', () => {
@@ -135,6 +138,74 @@ describe('cachê por faixa de convidados', () => {
   });
 });
 
+/*
+  As duas tabelas que o Alan mandou.
+
+  Casamento e festa de 15 anos pagam mais que aniversário e corporativo para o
+  mesmo número de convidados. A do casamento para em 199 de propósito: as duas
+  últimas faixas vieram cortadas na foto, e cachê chutado é dinheiro chutado.
+*/
+describe('cachê por tipo de evento', () => {
+  const duasTabelas = [
+    { min: 1, max: 30, valor: 500, tipo: 'aniversario' as const },
+    { min: 100, max: 120, valor: 1200, tipo: 'aniversario' as const },
+    { min: 250, max: 300, valor: 2000, tipo: 'aniversario' as const },
+    { min: 1, max: 30, valor: 800, tipo: 'casamento' as const },
+    { min: 100, max: 120, valor: 1600, tipo: 'casamento' as const },
+  ];
+
+  it('o mesmo evento custa mais em casamento', () => {
+    expect(valorDaFaixa(duasTabelas, 20, 0, 'aniversario')).toBe(500);
+    expect(valorDaFaixa(duasTabelas, 20, 0, 'casamento')).toBe(800);
+
+    expect(valorDaFaixa(duasTabelas, 110, 0, 'aniversario')).toBe(1200);
+    expect(valorDaFaixa(duasTabelas, 110, 0, 'casamento')).toBe(1600);
+  });
+
+  it('a tabela do tipo ganha da tabela geral', () => {
+    const misturado = [
+      { min: 1, max: 300, valor: 999, tipo: null },
+      { min: 1, max: 30, valor: 500, tipo: 'aniversario' as const },
+    ];
+    expect(valorDaFaixa(misturado, 20, 0, 'aniversario')).toBe(500);
+    // Casamento não tem faixa própria aqui, então herda a geral.
+    expect(valorDaFaixa(misturado, 20, 0, 'casamento')).toBe(999);
+  });
+
+  it('convidados fora da tabela caem no padrão, e isso é detectável', () => {
+    const servico = {
+      id: 's',
+      nome: 'Churrasqueiro',
+      papel: 'equipe' as const,
+      valorPadrao: 600,
+      usaFaixa: true,
+      percentual: 0,
+      faixas: duasTabelas,
+    };
+
+    // 250 existe em aniversário, mas não em casamento.
+    expect(valorSugerido(servico, 260, 'aniversario')).toBe(2000);
+    expect(faltaFaixa(servico, 260, 'aniversario')).toBe(false);
+
+    expect(valorSugerido(servico, 260, 'casamento')).toBe(600);
+    expect(faltaFaixa(servico, 260, 'casamento')).toBe(true);
+  });
+
+  it('serviço de valor fixo nunca reclama de faixa', () => {
+    const fixo = {
+      id: 'f',
+      nome: 'Garçom',
+      papel: 'equipe' as const,
+      valorPadrao: 200,
+      usaFaixa: false,
+      percentual: 0,
+      faixas: [],
+    };
+    expect(faltaFaixa(fixo, 1000, 'casamento')).toBe(false);
+    expect(valorSugerido(fixo, 1000, 'casamento')).toBe(200);
+  });
+});
+
 describe('cálculo do orçamento', () => {
   it('corrige o peso de compra pelo aproveitamento', () => {
     const r = calcular(orcamentoDe());
@@ -147,8 +218,8 @@ describe('cálculo do orçamento', () => {
     const r = calcular(
       orcamentoDe({
         servicos: [
-          { id: 'a', servicoId: null, nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600, percentual: 0 },
-          { id: 'b', servicoId: null, nome: 'Frete', papel: 'frete', pessoa: '', quantidade: 2, valor: 50, percentual: 0 },
+          { id: 'a', servicoId: null, nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600, percentual: 0 , valorManual: false },
+          { id: 'b', servicoId: null, nome: 'Frete', papel: 'frete', pessoa: '', quantidade: 2, valor: 50, percentual: 0 , valorManual: false },
         ],
       }),
     );
@@ -165,7 +236,7 @@ describe('cálculo do orçamento', () => {
     const r = calcular(
       orcamentoDe({
         servicos: [
-          { id: 'i', servicoId: null, nome: 'Imposto (DAS)', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 7 },
+          { id: 'i', servicoId: null, nome: 'Imposto (DAS)', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 7 , valorManual: false },
         ],
       }),
     );
@@ -181,8 +252,8 @@ describe('cálculo do orçamento', () => {
     const r = calcular(
       orcamentoDe({
         servicos: [
-          { id: 'a', servicoId: null, nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600, percentual: 0 },
-          { id: 'i', servicoId: null, nome: 'Imposto (DAS)', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 7 },
+          { id: 'a', servicoId: null, nome: 'Churrasqueiro', papel: 'equipe', pessoa: 'Alan', quantidade: 1, valor: 600, percentual: 0 , valorManual: false },
+          { id: 'i', servicoId: null, nome: 'Imposto (DAS)', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 7 , valorManual: false },
         ],
       }),
     );
@@ -201,7 +272,7 @@ describe('cálculo do orçamento', () => {
     const r = calcular(
       orcamentoDe({
         servicos: [
-          { id: 'i', servicoId: null, nome: 'Imposto', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 150 },
+          { id: 'i', servicoId: null, nome: 'Imposto', papel: 'imposto', pessoa: '', quantidade: 1, valor: 0, percentual: 150 , valorManual: false },
         ],
       }),
     );
@@ -215,7 +286,7 @@ describe('cálculo do orçamento', () => {
         adultos: 20,
         faixas: [faixa('Até 5', 0, 4), faixa('6 a 10', 50, 6)],
         servicos: [
-          { id: 'a', servicoId: null, nome: 'Equipe', papel: 'equipe', pessoa: '', quantidade: 1, valor: 1000, percentual: 0 },
+          { id: 'a', servicoId: null, nome: 'Equipe', papel: 'equipe', pessoa: '', quantidade: 1, valor: 1000, percentual: 0 , valorManual: false },
         ],
       }),
     );

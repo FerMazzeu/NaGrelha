@@ -79,11 +79,31 @@ export const ROTULO_PAPEL: Record<PapelDeServico, string> = {
   locacao: 'Locação',
 };
 
-/** Cachê que muda com o tamanho do evento. `max` nulo é "daqui para cima". */
+/**
+ * O tipo de evento, porque o cachê depende dele.
+ *
+ * O Alan cobra mais em casamento e festa de 15 anos que em aniversário e
+ * corporativo, para o mesmo número de convidados. São duas tabelas diferentes,
+ * e não um acréscimo por cima de uma só.
+ */
+export type TipoDeEvento = 'aniversario' | 'casamento';
+
+export const ROTULO_TIPO_EVENTO: Record<TipoDeEvento, string> = {
+  aniversario: 'Aniversário, corporativo',
+  casamento: 'Casamento, 15 anos',
+};
+
+/**
+ * Cachê que muda com o tamanho do evento. `max` nulo é "daqui para cima".
+ *
+ * `tipo` nulo significa que a faixa vale para qualquer tipo de evento, que é
+ * como as faixas antigas funcionavam. As tabelas novas do Alan são por tipo.
+ */
 export type FaixaDeCache = {
   min: number;
   max: number | null;
   valor: number;
+  tipo: TipoDeEvento | null;
 };
 
 export type Servico = {
@@ -115,6 +135,14 @@ export type ServicoDoEvento = {
   valor: number;
   /** Percentual do total. Zero usa `quantidade x valor`. */
   percentual: number;
+  /**
+   * Alguém digitou o valor à mão.
+   *
+   * Sem isto, mudar o número de convidados sobrescreveria um desconto que a
+   * Érica deu de propósito. Com isto, a tabela só manda enquanto ninguém
+   * mexeu naquela linha.
+   */
+  valorManual: boolean;
 };
 
 /**
@@ -213,6 +241,8 @@ export type Orcamento = {
   local: string;
   observacoes: string;
   situacao: Situacao;
+  /** Manda no cachê da equipe: casamento custa mais que aniversário. */
+  tipoEvento: TipoDeEvento;
 
   adultos: number;
   /**

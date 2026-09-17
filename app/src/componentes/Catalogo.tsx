@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
+import TabelasDeCache from './TabelasDeCache';
 import { agruparPorPreparo, CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
-import type { Categoria, Item } from '../dominio/tipos';
+import type { Categoria, Item, Servico } from '../dominio/tipos';
 import { casaBusca, inteiro, real } from '../formato';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
@@ -24,18 +25,23 @@ const VAZIO: Omit<Item, 'id'> = {
  */
 export default function Catalogo({
   itens,
+  servicos,
   aoSalvar,
   aoCriar,
   aoRemover,
+  aoSalvarServico,
 }: {
   itens: Item[];
+  servicos: Servico[];
   aoSalvar: (item: Item) => Promise<void>;
   aoCriar: (item: Omit<Item, 'id'>) => Promise<void>;
   aoRemover: (id: string) => Promise<void>;
+  aoSalvarServico: (servico: Servico) => Promise<void>;
 }) {
   const [novo, setNovo] = useState(VAZIO);
   const [abrindo, setAbrindo] = useState(false);
   const [busca, setBusca] = useState('');
+  const [secao, setSecao] = useState<'itens' | 'cache'>('itens');
 
   const encontrados = useMemo(() => itens.filter((i) => casaBusca(busca, i.nome)), [itens, busca]);
 
@@ -51,12 +57,48 @@ export default function Catalogo({
       <div className="flex items-center justify-between gap-4">
         <div>
           <h1 className="titulo text-2xl">Catálogo</h1>
-          <p className="mt-1 text-sm text-fumaca">Item, quanto vai por pessoa, aproveitamento e preço.</p>
+          <p className="mt-1 text-sm text-fumaca">
+            {secao === 'itens'
+              ? 'Item, quanto vai por pessoa, aproveitamento e preço.'
+              : 'Quanto o Alan e a Érica cobram, por tamanho e tipo de evento.'}
+          </p>
         </div>
-        <button type="button" className="botao botao-brasa" onClick={() => setAbrindo((v) => !v)}>
-          {abrindo ? 'Cancelar' : 'Novo item'}
-        </button>
+        {secao === 'itens' && (
+          <button type="button" className="botao botao-brasa" onClick={() => setAbrindo((v) => !v)}>
+            {abrindo ? 'Cancelar' : 'Novo item'}
+          </button>
+        )}
       </div>
+
+      <div className="mt-4 flex gap-1 rounded-full border border-borda p-1">
+        {(
+          [
+            ['itens', 'Itens'],
+            ['cache', 'Tabelas de cachê'],
+          ] as const
+        ).map(([valor, rotulo]) => (
+          <button
+            key={valor}
+            type="button"
+            aria-pressed={secao === valor}
+            onClick={() => setSecao(valor)}
+            className={`flex-1 rounded-full px-3 py-2 text-sm font-semibold transition-colors ${
+              secao === valor ? 'bg-carvao-3 text-dourado' : 'text-fumaca hover:text-creme'
+            }`}
+          >
+            {rotulo}
+          </button>
+        ))}
+      </div>
+
+      {secao === 'cache' && (
+        <div className="mt-5">
+          <TabelasDeCache servicos={servicos} aoSalvar={aoSalvarServico} />
+        </div>
+      )}
+
+      {secao === 'itens' && (
+        <>
 
       {abrindo && (
         <div className="cartao mt-4 space-y-4 p-4">
@@ -192,6 +234,8 @@ export default function Catalogo({
           </section>
         ))}
       </div>
+        </>
+      )}
     </div>
   );
 }

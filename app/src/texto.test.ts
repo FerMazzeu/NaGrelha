@@ -56,6 +56,7 @@ function orcamentoDe(itens: Item[]): Orcamento {
     local: '',
     observacoes: '',
     situacao: 'orcado',
+    tipoEvento: 'aniversario',
     adultos: 10,
     faixas: [],
     apetite: 'normal',
