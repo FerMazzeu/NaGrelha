@@ -1,5 +1,5 @@
-import { ROTULO_CATEGORIA } from './dominio/catalogo';
-import { ROTULO_PAPEL, type Orcamento, type Resultado } from './dominio/tipos';
+import { agruparPorPreparo, ROTULO_CATEGORIA } from './dominio/catalogo';
+import { ROTULO_PAPEL, type Item, type Orcamento, type Resultado } from './dominio/tipos';
 import { dataCurta } from './formato';
 
 /**
@@ -233,6 +233,91 @@ export async function montarPlanilha(orcamento: Orcamento, resultado: Resultado)
       ]);
       l.getCell(3).numFmt = '0.00';
       l.getCell(4).numFmt = MOEDA;
+    }
+  }
+
+  return livro.xlsx.writeBuffer();
+}
+
+/**
+ * Baixa o catálogo como planilha, para editar no Excel e subir de volta.
+ *
+ * O formato é o mesmo que o Alan já usa e o mesmo que a importação lê: o
+ * preparo em caixa alta ocupando a linha, e abaixo dele os itens com
+ * quantidade, unidade e preço. É isso que fecha o ciclo: o que sai daqui volta
+ * por Catálogo > Importar sem ninguém traduzir nada no meio.
+ *
+ * A quantidade sai calculada para um número de pessoas, porque o catálogo
+ * guarda por pessoa e a planilha dele sempre foi por evento. Sem isso ele
+ * abriria o arquivo e veria "0,325 pão", que não diz nada para quem vai ao
+ * mercado.
+ */
+export async function exportarCatalogo(itens: Item[], pessoas: number) {
+  const buffer = await montarCatalogo(itens, pessoas);
+  baixar(
+    new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }),
+    `Na Grelha - cardapio ${pessoas} pessoas.xlsx`,
+  );
+}
+
+/** Separado do download para poder ser testado sem navegador. */
+export async function montarCatalogo(itens: Item[], pessoas: number) {
+  const { Workbook } = await import('exceljs');
+  const livro = new Workbook();
+  livro.creator = 'Na Grelha com Alan Xavier';
+
+  const aba = livro.addWorksheet('ORÇAMENTO MODELO');
+  aba.columns = [{ width: 3 }, { width: 34 }, { width: 10 }, { width: 12 }, { width: 10 }, { width: 12 }];
+
+  let linha = 1;
+
+  /*
+    Este cabeçalho é lido de volta na importação, para descobrir o tamanho do
+    modelo. Mudar a frase quebra a leitura do arquivo que o próprio app gerou.
+  */
+  const topo = aba.getRow(linha++);
+  topo.getCell(3).value = `MODELO ${pessoas} PESSOAS`;
+  topo.getCell(3).font = { bold: true, size: 12 };
+
+  const adultos = aba.getRow(linha++);
+  adultos.getCell(3).value = 'ADULTOS';
+  adultos.getCell(4).value = pessoas;
+
+  linha++;
+
+  const titulos = aba.getRow(linha++);
+  ['', 'Descrição', '', 'Quantidade', 'Unidade', 'Valor'].forEach((t, i) => {
+    titulos.getCell(i + 1).value = t;
+    titulos.getCell(i + 1).font = { bold: true, size: 9 };
+  });
+
+  for (const [preparo, doPreparo] of agruparPorPreparo(itens)) {
+    const grupo = aba.getRow(linha++);
+    // Repetido nas quatro colunas: é assim que a planilha dele marca preparo, e
+    // é assim que a importação reconhece cabeçalho em vez de item.
+    const nome = preparo.toUpperCase();
+    for (let c = 2; c <= 5; c++) {
+      grupo.getCell(c).value = nome;
+      grupo.getCell(c).font = { bold: true, size: 10 };
+    }
+
+    for (const item of doPreparo) {
+      const l = aba.getRow(linha++);
+      l.getCell(2).value = item.nome;
+      /*
+        O que se COMPRA, e não o que vai no prato.
+
+        A planilha dele é lista de compra, e o catálogo guarda prato. Com 150 g
+        de picanha por pessoa e 72% de aproveitamento, a compra é 16,7 kg para
+        80 pessoas, e não 12. Escrever 12 aqui faria faltar carne na festa.
+      */
+      const aproveita = item.rendimento > 0 ? Math.min(1, item.rendimento) : 1;
+      const comprar = (item.porPessoa * pessoas) / aproveita;
+      l.getCell(4).value =
+        item.unidade === 'kg' ? Math.round(comprar / 100) / 10 : Math.round(comprar * 100) / 100;
+      l.getCell(5).value = item.unidade === 'kg' ? 'kg' : 'und.';
+      l.getCell(6).value = item.preco;
+      l.getCell(6).numFmt = 'R$ #,##0.00';
     }
   }
 

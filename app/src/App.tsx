@@ -339,6 +339,31 @@ export default function App() {
                 await repositorio.removerItem(id);
               }}
               servicos={servicos}
+              faixas={faixas}
+              aoSalvarFaixa={async (faixa) => {
+                setFaixas((a) => a.map((f) => (f.id === faixa.id ? faixa : f)));
+                try {
+                  await repositorio.salvarFaixaEtaria(faixa);
+                } catch (e) {
+                  setErro(e instanceof Error ? e.message : String(e));
+                }
+              }}
+              aoCriarFaixa={async (faixa) => {
+                try {
+                  const criada = await repositorio.criarFaixaEtaria(faixa);
+                  setFaixas((a) => [...a, criada]);
+                } catch (e) {
+                  setErro(e instanceof Error ? e.message : String(e));
+                }
+              }}
+              aoRemoverFaixa={async (id) => {
+                setFaixas((a) => a.filter((f) => f.id !== id));
+                try {
+                  await repositorio.removerFaixaEtaria(id);
+                } catch (e) {
+                  setErro(e instanceof Error ? e.message : String(e));
+                }
+              }}
               aoSalvarServico={async (servico) => {
                 // A tela mostra na hora; o banco recebe logo atrás. Tabela de
                 // cachê é editada aos poucos, campo a campo.

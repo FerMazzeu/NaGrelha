@@ -1,7 +1,10 @@
 import { useMemo, useState } from 'react';
+import FaixasEtarias from './FaixasEtarias';
+import Receita from './Receita';
+import ImportarCatalogo from './ImportarCatalogo';
 import TabelasDeCache from './TabelasDeCache';
 import { agruparPorPreparo, CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
-import type { Categoria, Item, Servico } from '../dominio/tipos';
+import type { Categoria, FaixaEtaria, Item, Servico } from '../dominio/tipos';
 import { casaBusca, inteiro, real } from '../formato';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
@@ -26,24 +29,45 @@ const VAZIO: Omit<Item, 'id'> = {
 export default function Catalogo({
   itens,
   servicos,
+  faixas,
   aoSalvar,
   aoCriar,
   aoRemover,
   aoSalvarServico,
+  aoSalvarFaixa,
+  aoCriarFaixa,
+  aoRemoverFaixa,
 }: {
   itens: Item[];
   servicos: Servico[];
+  faixas: FaixaEtaria[];
   aoSalvar: (item: Item) => Promise<void>;
   aoCriar: (item: Omit<Item, 'id'>) => Promise<void>;
   aoRemover: (id: string) => Promise<void>;
   aoSalvarServico: (servico: Servico) => Promise<void>;
+  aoSalvarFaixa: (faixa: FaixaEtaria) => Promise<void>;
+  aoCriarFaixa: (faixa: Omit<FaixaEtaria, 'id'>) => Promise<void>;
+  aoRemoverFaixa: (id: string) => Promise<void>;
 }) {
   const [novo, setNovo] = useState(VAZIO);
   const [abrindo, setAbrindo] = useState(false);
   const [busca, setBusca] = useState('');
-  const [secao, setSecao] = useState<'itens' | 'cache'>('itens');
+  const [secao, setSecao] = useState<'itens' | 'cache' | 'criancas' | 'importar'>('itens');
 
   const encontrados = useMemo(() => itens.filter((i) => casaBusca(busca, i.nome)), [itens, busca]);
+
+  /*
+    Renomear a receita muda o preparo de todos os itens dela.
+
+    Não existe tabela de receita: a receita É o conjunto de itens com o mesmo
+    preparo. Por isso renomear é uma gravação por item, e por isso o nome
+    aparece uma vez só na tela, e não repetido em cada linha.
+  */
+  const renomearPreparo = async (de: string, para: string) => {
+    for (const item of itens.filter((i) => i.grupo === de)) {
+      await aoSalvar({ ...item, grupo: para });
+    }
+  };
 
   const criar = async () => {
     if (!novo.nome.trim()) return;
@@ -59,13 +83,17 @@ export default function Catalogo({
           <h1 className="titulo text-2xl">Catálogo</h1>
           <p className="mt-1 text-sm text-fumaca">
             {secao === 'itens'
-              ? 'Item, quanto vai por pessoa, aproveitamento e preço.'
-              : 'Quanto o Alan e a Érica cobram, por tamanho e tipo de evento.'}
+              ? 'Cada preparo com os ingredientes dele, quanto vai por pessoa e o preço.'
+              : secao === 'cache'
+                ? 'Quanto o Alan e a Érica cobram, por tamanho e tipo de evento.'
+                : secao === 'criancas'
+                  ? 'Até que idade paga quanto. Vale para o que come e para o que cobra.'
+                  : 'Traz o cardápio da planilha do Excel para cá.'}
           </p>
         </div>
         {secao === 'itens' && (
           <button type="button" className="botao botao-brasa" onClick={() => setAbrindo((v) => !v)}>
-            {abrindo ? 'Cancelar' : 'Novo item'}
+            {abrindo ? 'Cancelar' : 'Nova receita'}
           </button>
         )}
       </div>
@@ -73,8 +101,10 @@ export default function Catalogo({
       <div className="mt-4 flex gap-1 rounded-full border border-borda p-1">
         {(
           [
-            ['itens', 'Itens'],
-            ['cache', 'Tabelas de cachê'],
+            ['itens', 'Receitas'],
+            ['cache', 'Cachê'],
+            ['criancas', 'Crianças'],
+            ['importar', 'Importar'],
           ] as const
         ).map(([valor, rotulo]) => (
           <button
@@ -94,6 +124,28 @@ export default function Catalogo({
       {secao === 'cache' && (
         <div className="mt-5">
           <TabelasDeCache servicos={servicos} aoSalvar={aoSalvarServico} />
+        </div>
+      )}
+
+      {secao === 'criancas' && (
+        <div className="mt-5">
+          <FaixasEtarias
+            faixas={faixas}
+            aoSalvar={aoSalvarFaixa}
+            aoCriar={aoCriarFaixa}
+            aoRemover={aoRemoverFaixa}
+          />
+        </div>
+      )}
+
+      {secao === 'importar' && (
+        <div className="mt-5">
+          <ImportarCatalogo
+            catalogo={itens}
+            aoSalvar={aoSalvar}
+            aoCriar={aoCriar}
+            aoTerminar={() => setSecao('itens')}
+          />
         </div>
       )}
 
@@ -217,21 +269,20 @@ export default function Catalogo({
       )}
 
       {/* Por preparo, nao por categoria: e assim que a compra acontece. */}
-      <div className="mt-6 space-y-8">
-        {agruparPorPreparo(encontrados).map(([preparo, itens]) => (
-          <section key={preparo}>
-            <div className="flex items-baseline justify-between gap-3">
-              <h2 className="titulo text-lg text-dourado">{preparo}</h2>
-              <span className="shrink-0 text-xs text-fumaca">
-                {itens.length} {itens.length === 1 ? 'item' : 'itens'}
-              </span>
-            </div>
-            <div className="mt-3 space-y-3">
-              {itens.map((item) => (
-                <LinhaDeItem key={item.id} item={item} aoSalvar={aoSalvar} aoRemover={aoRemover} />
-              ))}
-            </div>
-          </section>
+      <div className="mt-6 space-y-5">
+        {agruparPorPreparo(encontrados).map(([preparo, doPreparo]) => (
+          <Receita
+            key={preparo}
+            preparo={preparo}
+            itens={doPreparo}
+            catalogo={itens}
+            aoCriar={aoCriar}
+            aoRenomear={renomearPreparo}
+          >
+            {doPreparo.map((item) => (
+              <LinhaDeItem key={item.id} item={item} aoSalvar={aoSalvar} aoRemover={aoRemover} />
+            ))}
+          </Receita>
         ))}
       </div>
         </>
