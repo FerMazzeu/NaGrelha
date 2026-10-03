@@ -19,6 +19,7 @@ import { decimal, inteiro, novoId, quantidade, real } from '../formato';
 import { exportarOrcamento } from '../excel';
 import { textoDaEscala, textoDaListaDeCompras, textoDaProposta } from '../texto';
 import { BotaoCopiar, Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
+import Proposta from './Proposta';
 
 const METAS_DE_CARNE = [300, 350, 400, 450, 500];
 
@@ -39,6 +40,7 @@ export default function EditorDeOrcamento({
   aoVoltar: () => void;
   aoRemover: () => void;
 }) {
+  const [vendoProposta, setVendoProposta] = useState(false);
   const [aba, setAba] = useState<
     'evento' | 'cardapio' | 'servicos' | 'equipe' | 'custos' | 'resultado'
   >('evento');
@@ -53,6 +55,17 @@ export default function EditorDeOrcamento({
         ? orcamento.selecionados.filter((s) => s !== id)
         : [...orcamento.selecionados, id],
     });
+
+  /*
+    A proposta toma a tela inteira, e não abre numa aba nova.
+
+    Aba nova perde a janela de impressão no celular e some atrás do navegador
+    no notebook. Aqui o Alan confere, imprime, e volta para o orçamento no
+    mesmo lugar onde estava.
+  */
+  if (vendoProposta) {
+    return <Proposta orcamento={orcamento} resultado={resultado} aoFechar={() => setVendoProposta(false)} />;
+  }
 
   return (
     <div className="pb-32">
@@ -297,7 +310,12 @@ export default function EditorDeOrcamento({
                     {marcados}/{doPreparo.length} · {marcados === doPreparo.length ? 'tirar tudo' : 'marcar tudo'}
                   </button>
                 </div>
-                <div className="mt-3 space-y-2">
+                {/*
+                  Duas colunas no notebook: CHURRASCO sozinho tem doze cortes,
+                  e em coluna única a pessoa marca o cardápio rolando a tela
+                  com meia largura de monitor vazia ao lado.
+                */}
+                <div className="mt-3 grid gap-2 xl:grid-cols-2">
                   {doPreparo
                     .map((item) => {
                       const marcado = orcamento.selecionados.includes(item.id);
@@ -470,11 +488,27 @@ export default function EditorDeOrcamento({
 
         {aba === 'equipe' && <EscalaDoEvento eventoId={orcamento.id} membros={membros} />}
 
-        {aba === 'resultado' && <Resultado orcamento={orcamento} resultado={resultado} />}
+        {aba === 'resultado' && (
+          <Resultado
+            orcamento={orcamento}
+            resultado={resultado}
+            aoVerProposta={() => setVendoProposta(true)}
+          />
+        )}
       </div>
 
-      {/* Barra fixa: o preço é o número que se olha o tempo todo, em qualquer aba. */}
-      <div className="fixed inset-x-0 bottom-0 z-20 border-t border-borda bg-carvao/95 backdrop-blur">
+      {/*
+        Barra fixa: o preço é o número que se olha o tempo todo, em qualquer aba.
+
+        O `left` sai da mesma variável do menu lateral: colada em `inset-x-0`
+        ela passaria por baixo da coluna no computador, e o preço fechado
+        ficaria escondido atrás do menu. No celular a variável é zero e a barra
+        ocupa a largura toda, como antes.
+      */}
+      <div
+        className="fixed inset-x-0 bottom-0 z-20 border-t border-borda bg-carvao/95 backdrop-blur"
+        style={{ left: 'var(--largura-menu)' }}
+      >
         <div className="area flex items-center justify-between gap-4 py-3">
           <div className="min-w-0">
             <p className="rotulo whitespace-nowrap">Preço fechado</p>
@@ -498,9 +532,11 @@ export default function EditorDeOrcamento({
 function Resultado({
   orcamento,
   resultado,
+  aoVerProposta,
 }: {
   orcamento: Orcamento;
   resultado: ReturnType<typeof calcular>;
+  aoVerProposta: () => void;
 }) {
   const proposta = textoDaProposta(orcamento, resultado);
   const compras = textoDaListaDeCompras(orcamento, resultado);
@@ -541,14 +577,37 @@ function Resultado({
         ))}
       </div>
 
+      {/*
+        Dois documentos, e não um em dois formatos.
+
+        O PDF é o que vai para o cliente: cardápio, serviço incluso e preço. O
+        Excel é o de trabalho do Alan, e mostra custo de insumo e o cachê de
+        cada um. Trocar um pelo outro na pressa manda a folha de pagamento
+        dele para quem está comprando churrasco, então eles ficam separados,
+        rotulados, e com o destinatário escrito no cartão.
+      */}
+      <div className="cartao p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="rotulo">Proposta em PDF</p>
+            <p className="mt-1 text-sm text-fumaca">
+              Para mandar ao cliente, com a logo. Sem custo de insumo e sem o que a equipe ganha.
+            </p>
+          </div>
+          <button type="button" className="botao botao-brasa" onClick={aoVerProposta}>
+            Ver proposta
+          </button>
+        </div>
+      </div>
+
       {/* Exportar fecha o ciclo: o orcamento sai no formato de planilha que
           eles ja usam, com insumos por preparo, servico e total por convidado. */}
       <div className="cartao p-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="rotulo">Planilha</p>
+            <p className="rotulo">Planilha de trabalho</p>
             <p className="mt-1 text-sm text-fumaca">
-              Baixa o orçamento em Excel, com insumos, serviço e lista de compras.
+              Só para você: Excel com insumos, custo de cada um, serviço e lista de compras.
             </p>
           </div>
           <button

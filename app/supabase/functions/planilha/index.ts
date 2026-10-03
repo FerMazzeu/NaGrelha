@@ -1,8 +1,13 @@
-// Na Grelha — le a FOTO de uma planilha e devolve os itens.
+// Na Grelha — le a FOTO de uma planilha ou de uma NOTA de mercado.
 //
 // O Alan manda tabela por foto: ele fotografa a tela do Excel ou o papel e
 // joga no grupo. Ate agora isso virava digitacao manual, ou a pessoa pedia o
 // arquivo de volta e esperava.
+//
+// A nota do mercado e o mesmo problema com outra folha: ele faz a compra,
+// volta com o cupom, e os precos novos precisam entrar no catalogo. Duas
+// leituras, uma funcao so: muda o texto das instrucoes, e o que sai tem
+// exatamente o mesmo formato, porque desce pela mesma tela de conferencia.
 //
 // A leitura de .xlsx continua no navegador, onde e exata e de graca. Esta
 // funcao e so para o que nao da para ler sem visao, e mora no servidor porque
@@ -47,6 +52,27 @@ Regras:
 
 Se a foto estiver ilegivel ou nao for planilha, devolva a lista vazia.`;
 
+const INSTRUCOES_NOTA = `Voce le cupom fiscal e nota de compra de mercado, e devolve os produtos.
+
+O que importa nesta leitura e o PRECO UNITARIO de cada produto, porque e ele que vai atualizar
+o custo do buffet. O total da linha nao serve: ele ja embute a quantidade comprada.
+
+Regras:
+- nome: o que esta escrito no cupom, sem o codigo do produto na frente. "000123 ARROZ TIO JOAO 5KG"
+  vira "ARROZ TIO JOAO 5KG". Mantenha a marca e o tamanho, que e o que diferencia um do outro.
+- unidade: "kg" quando o produto e pesado (aparece UN KG, ou a quantidade tem casa decimal e o
+  preco e por quilo). "un" para o resto, inclusive pacote, fardo, duzia e caixa.
+- preco: o preco de UMA unidade ou de UM quilo. No cupom costuma estar numa coluna chamada
+  VL UNIT, UNITARIO ou PRECO. Se so houver o total e a quantidade, divida o total pela
+  quantidade.
+- quantidade: quanto foi comprado.
+- grupo: deixe vazio. Cupom de mercado nao tem preparo, e inventar um bagunca o catalogo.
+- Nao inclua as linhas de fechamento: subtotal, total, troco, desconto, acrescimo, forma de
+  pagamento, CNPJ, cupom, tributos, nem os dados da loja.
+- pessoas: sempre 0. Nota de mercado nao atende um numero de pessoas.
+
+Se a foto estiver ilegivel ou nao for nota de compra, devolva a lista vazia.`;
+
 const ESQUEMA = {
   type: 'object',
   additionalProperties: false,
@@ -85,7 +111,10 @@ Deno.serve(async (req) => {
     const chave = Deno.env.get('OPENROUTER_API_KEY');
     if (!chave) return json({ error: 'sem_chave', message: 'OPENROUTER_API_KEY nao configurada.' }, 503);
 
-    const { imagens } = await req.json();
+    const { imagens, tipo } = await req.json();
+    // 'planilha' e o padrao: era o unico modo quando isto nasceu, e o front
+    // antigo nao manda o campo.
+    const nota = tipo === 'nota';
     const lista: string[] = (Array.isArray(imagens) ? imagens : [])
       .filter((i: unknown) => typeof i === 'string' && i.startsWith('data:image/'))
       .slice(0, 4);
@@ -97,8 +126,8 @@ Deno.serve(async (req) => {
       type: 'text',
       text:
         lista.length > 1
-          ? 'Sao partes da MESMA planilha, em ordem. Junte tudo numa lista so.'
-          : 'Leia esta planilha.',
+          ? `Sao partes d${nota ? 'a MESMA nota' : 'a MESMA planilha'}, em ordem. Junte tudo numa lista so.`
+          : `Leia est${nota ? 'a nota de compra' : 'a planilha'}.`,
     });
 
     const resposta = await fetch(OPENROUTER_URL, {
@@ -111,7 +140,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         model: MODELO,
         messages: [
-          { role: 'system', content: INSTRUCOES },
+          { role: 'system', content: nota ? INSTRUCOES_NOTA : INSTRUCOES },
           { role: 'user', content: partes },
         ],
         // Sem isto o modelo devolve JSON dentro de markdown, e a metade das

@@ -2,8 +2,11 @@ import { funcao, supabase } from './integrations/supabase/client';
 import type { Item } from './dominio/tipos';
 import type { LinhaLida, Motivo, PlanilhaLida } from './planilha';
 
+/** O que a foto mostra. Muda só as instruções do modelo, nada mais. */
+export type TipoDeFoto = 'planilha' | 'nota';
+
 /**
- * Ler a planilha a partir de uma FOTO.
+ * Ler a planilha, ou a nota do mercado, a partir de uma FOTO.
  *
  * O Alan manda tabela fotografada: ele bate a foto da tela do Excel, ou do
  * papel na mão, e joga no grupo. Até aqui isso virava alguém digitando item
@@ -12,6 +15,10 @@ import type { LinhaLida, Motivo, PlanilhaLida } from './planilha';
  * O `.xlsx` continua sendo lido no navegador, onde é exato e de graça. Isto
  * aqui é só para o que não dá para ler sem enxergar, e o trabalho acontece no
  * servidor porque a chave do modelo não pode ir para o navegador.
+ *
+ * A nota do mercado entra pela mesma porta. Ele compra, volta com o cupom, e
+ * os preços novos precisam chegar ao catálogo — era o segundo pedido dele na
+ * mesma conversa, e é o mesmo problema com outra folha.
  *
  * O que sai daqui tem o mesmo formato do leitor de Excel de propósito: a tela
  * de conferência, a comparação e o "aplicar" não sabem por onde a planilha
@@ -111,7 +118,7 @@ const numero = (v: unknown) => {
  * Aceita mais de uma foto porque tabela raramente cabe num enquadramento só: a
  * função é avisada de que são partes da mesma planilha, em ordem.
  */
-export async function lerFotos(arquivos: File[]): Promise<PlanilhaLida> {
+export async function lerFotos(arquivos: File[], tipo: TipoDeFoto = 'planilha'): Promise<PlanilhaLida> {
   const fotos = arquivos.filter((a) => a.type.startsWith('image/')).slice(0, MAXIMO_DE_FOTOS);
   if (!fotos.length) throw new Error('Isso não é uma foto.');
 
@@ -126,7 +133,7 @@ export async function lerFotos(arquivos: File[]): Promise<PlanilhaLida> {
       Authorization: `Bearer ${sessao.session.access_token}`,
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ imagens }),
+    body: JSON.stringify({ imagens, tipo }),
   });
 
   const corpo = await resposta.json().catch(() => null);
@@ -144,7 +151,12 @@ export async function lerFotos(arquivos: File[]): Promise<PlanilhaLida> {
       const preco = numero(i.preco);
       return {
         nome: String(i.nome ?? '').trim(),
-        grupo: String(i.grupo ?? '').trim() || 'SEM PREPARO',
+        /*
+          Cupom de mercado não tem preparo, e o modelo é instruído a deixar
+          vazio. "COMPRAS" em vez de "SEM PREPARO" porque é o que a pessoa vê
+          na tela de conferência, e diz de onde aquilo veio.
+        */
+        grupo: String(i.grupo ?? '').trim() || (tipo === 'nota' ? 'COMPRAS' : 'SEM PREPARO'),
         unidade: (i.unidade === 'kg' ? 'kg' : 'un') as Item['unidade'],
         quantidade,
         preco,

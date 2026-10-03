@@ -51,6 +51,20 @@ export type Opcoes = {
   atualizarPrecos: boolean;
   atualizarQuantidades: boolean;
   criarNovos: boolean;
+  /**
+   * Casar pelo nome só, ignorando o preparo.
+   *
+   * Nota de mercado não tem preparo nenhum: o cupom lista produto e preço, e
+   * acabou. Com a chave normal, `nome|grupo`, nada do cupom casaria com nada
+   * do catálogo e TODO produto entraria como item novo — a primeira nota do
+   * Alan duplicaria o catálogo inteiro dele.
+   *
+   * Nome repetido em dois preparos não casa com ninguém de propósito. O
+   * "Bacon" do CHURRASCO e o do ARROZ CARRETEIRO são itens diferentes, com
+   * preço que pode divergir, e escolher um dos dois no escuro escreveria o
+   * preço errado sem ninguém ver.
+   */
+  casarSoPorNome?: boolean;
 };
 
 /**
@@ -120,6 +134,21 @@ const arredondar = (n: number, casas: number) => {
 export function compararComCatalogo(lidos: LinhaLida[], catalogo: Item[], opcoes: Opcoes): Comparacao {
   const porChave = new Map(catalogo.map((i) => [chave(i.nome, i.grupo), i]));
 
+  /*
+    Índice por nome, sem o preparo, montado só quando a origem não tem preparo.
+
+    Nome que aparece em mais de um preparo fica de fora: o mapa guarda `null`,
+    e quem procura não acha, que é o resultado certo para uma escolha que não
+    dá para fazer sozinho.
+  */
+  const porNome = new Map<string, Item | null>();
+  if (opcoes.casarSoPorNome) {
+    for (const i of catalogo) {
+      const k = chave(i.nome, '');
+      porNome.set(k, porNome.has(k) ? null : i);
+    }
+  }
+
   const precos: MudancaDePreco[] = [];
   const quantidades: MudancaDeQuantidade[] = [];
   const novos: ItemNovo[] = [];
@@ -131,7 +160,8 @@ export function compararComCatalogo(lidos: LinhaLida[], catalogo: Item[], opcoes
 
   for (const linha of lidos) {
     const k = chave(linha.nome, linha.grupo);
-    const existente = porChave.get(k);
+    const existente =
+      porChave.get(k) ?? (opcoes.casarSoPorNome ? porNome.get(chave(linha.nome, '')) ?? undefined : undefined);
 
     if (!existente) {
       if (opcoes.criarNovos && !jaVistos.has(k)) {

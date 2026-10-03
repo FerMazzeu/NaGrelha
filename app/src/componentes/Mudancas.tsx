@@ -59,6 +59,7 @@ export default function Mudancas({
   aoAlternar,
   aoMudar,
   montarLinhas,
+  abrirTudo = false,
 }: {
   comparacao: Comparacao;
   rascunhos: Record<string, Rascunho>;
@@ -66,6 +67,18 @@ export default function Mudancas({
   aoAlternar: (chave: string) => void;
   aoMudar: (chave: string, r: Rascunho) => void;
   montarLinhas: (c: Comparacao, rascunhos: Record<string, Rascunho>) => Mudanca[];
+  /**
+   * Abre todos os preparos de cara.
+   *
+   * Por padrão só abre o que tem campo faltando: numa planilha de cem itens,
+   * o que importa é o que precisa de atenção, e o resto é ruído.
+   *
+   * Nota de mercado é o contrário. Lá a mudança de preço É o assunto, e ela
+   * nunca tem campo faltando — então, com a regra normal, a pessoa fotografa
+   * o cupom e a tela mostra só o cabeçalho de um preparo fechado, sem nenhum
+   * dos preços que ela veio conferir.
+   */
+  abrirTudo?: boolean;
 }) {
   const [busca, setBusca] = useState('');
   const [soFaltantes, setSoFaltantes] = useState(false);
@@ -165,7 +178,7 @@ export default function Mudancas({
         {porPreparo.map(([preparo, doPreparo]) => {
           const faltamAqui = doPreparo.filter(incompleto).length;
           return (
-            <details key={preparo} className="cartao p-3" open={!!busca || soFaltantes || faltamAqui > 0}>
+            <details key={preparo} className="cartao p-3" open={abrirTudo || !!busca || soFaltantes || faltamAqui > 0}>
               <summary className="flex cursor-pointer items-center justify-between gap-3">
                 <span className="min-w-0 truncate font-semibold">{preparo}</span>
                 <span className="shrink-0 text-xs">

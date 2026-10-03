@@ -199,6 +199,16 @@ async function logo() {
 
   await sharp(claro, cru).trim({ threshold: 1 }).png().toFile(`${DESTINO}/logo.png`);
   await sharp(escuro, cru).trim({ threshold: 1 }).png().toFile(`${DESTINO}/logo-escuro.png`);
+
+  /*
+    A mesma logo clara vai para o app, que e outro projeto Vite.
+
+    O app imprime a proposta do cliente em papel branco, e precisa da logo.
+    Sai daqui, e nao de um arquivo colado na mao la dentro, porque original de
+    marca em dois lugares e original de marca em lugar nenhum: a fonte e
+    fotos/62.jpg, aqui e no site.
+  */
+  await sharp(claro, cru).trim({ threshold: 1 }).png().toFile(`${raiz}/app/public/logo.png`);
   await sharp(origem).resize(512, 512, { fit: 'cover' }).png().toFile(`${PUBLICO}/favicon.png`);
 
   // og:image precisa de fundo: transparencia vira preto em varios leitores
@@ -208,7 +218,7 @@ async function logo() {
     .jpeg({ quality: 88 })
     .toFile(`${PUBLICO}/og.jpg`);
 
-  return ['logo.png', 'logo-escuro.png', 'public/favicon.png', 'public/og.jpg'];
+  return ['logo.png', 'logo-escuro.png', 'public/favicon.png', 'public/og.jpg', 'app/public/logo.png'];
 }
 
 mkdirSync(DESTINO, { recursive: true });

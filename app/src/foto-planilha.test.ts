@@ -114,6 +114,31 @@ describe('leitura da planilha por foto', () => {
     expect(enviado.imagens).toHaveLength(4);
   });
 
+  it('a nota do mercado vai marcada como nota, e só isso muda', async () => {
+    responde({ pessoas: 0, itens: [{ nome: 'ARROZ TIO JOAO 5KG', grupo: '', unidade: 'un', quantidade: 2, preco: 28.9 }] });
+
+    const lida = await lerFotos([foto()], 'nota');
+
+    expect(JSON.parse(fetchFalso.mock.calls[0][1].body).tipo).toBe('nota');
+    expect(lida.itens[0]).toMatchObject({ nome: 'ARROZ TIO JOAO 5KG', preco: 28.9, falta: undefined });
+  });
+
+  it('produto de cupom cai em COMPRAS, e não em SEM PREPARO', async () => {
+    // Cupom de mercado não tem preparo. "SEM PREPARO" soaria como erro de
+    // leitura; "COMPRAS" diz de onde aquilo veio.
+    responde({ pessoas: 0, itens: [{ nome: 'Carvão 5kg', grupo: '' }] });
+
+    expect((await lerFotos([foto()], 'nota')).itens[0].grupo).toBe('COMPRAS');
+  });
+
+  it('sem dizer o tipo, continua sendo planilha', async () => {
+    responde({ pessoas: 0, itens: [{ nome: 'X', grupo: '' }] });
+
+    await lerFotos([foto()]);
+
+    expect(JSON.parse(fetchFalso.mock.calls[0][1].body).tipo).toBe('planilha');
+  });
+
   it('recusa arquivo que não é foto antes de gastar uma chamada', async () => {
     await expect(lerFotos([new File(['x'], 'a.xlsx', { type: 'application/vnd.ms-excel' })])).rejects.toThrow(
       'Isso não é uma foto',

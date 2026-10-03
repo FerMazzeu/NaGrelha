@@ -41,7 +41,17 @@ export default function ListaDeOrcamentos({
           </p>
         </div>
       ) : (
-        <div className="mt-6 space-y-3">
+        /*
+          Duas colunas no notebook, uma no celular.
+
+          Cada cartão tem nome, data, convidados e preço: numa coluna só, a
+          2,5 cm de altura esticados por 100 cm de tela, ler a agenda da semana
+          vira rolagem. Em duas, a semana cabe na tela.
+
+          `xl` e não `lg`: em 1024 o cartão partido ao meio já corta o nome do
+          cliente, que é justamente o que se procura na lista.
+        */
+        <div className="mt-6 grid gap-3 xl:grid-cols-2">
           {orcamentos.map((o) => (
             <Cartao key={o.id} orcamento={o} aoAbrir={aoAbrir} aoDuplicar={aoDuplicar} aoRemover={aoRemover} />
           ))}

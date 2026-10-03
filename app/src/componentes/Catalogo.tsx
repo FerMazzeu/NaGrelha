@@ -279,9 +279,13 @@ export default function Catalogo({
             aoCriar={aoCriar}
             aoRenomear={renomearPreparo}
           >
-            {doPreparo.map((item) => (
-              <LinhaDeItem key={item.id} item={item} aoSalvar={aoSalvar} aoRemover={aoRemover} />
-            ))}
+            {/* `items-start`: sem ele, abrir uma linha estica o cartão vizinho
+                na mesma altura, e a coluna da direita fica com um vão vazio. */}
+            <div className="grid items-start gap-2 xl:grid-cols-2">
+              {doPreparo.map((item) => (
+                <LinhaDeItem key={item.id} item={item} aoSalvar={aoSalvar} aoRemover={aoRemover} />
+              ))}
+            </div>
           </Receita>
         ))}
       </div>
@@ -307,67 +311,97 @@ function LinhaDeItem({
     rascunho.rendimento !== item.rendimento ||
     rascunho.preco !== item.preco;
 
+  /*
+    Fechada, a linha é uma só: nome, quanto vai por pessoa e quanto custa.
+
+    Aberta, ela vira o editor de antes, inteiro. O Alan reclamou que a lista
+    de ingredientes estava "difícil de ver" — cada item ocupava um cartão de
+    três campos e um parágrafo, e um preparo com doze cortes virava uma tela
+    de rolagem para conferir três preços.
+
+    É a mesma abinha da tela de importar, que ele pediu e aprovou. `details`
+    em vez de um `useState`: o teclado, o leitor de tela e o Ctrl+F do
+    navegador já sabem lidar com ela de graça.
+  */
+  const porPessoaLegivel = `${inteiro(rascunho.porPessoa)} ${item.unidade === 'kg' ? 'g' : 'un'}`;
+
   return (
-    <div className="cartao p-4">
-      <div className="flex items-center gap-2">
-        <span className="shrink-0 rounded-full border border-borda px-2 py-1 text-[0.65rem] text-fumaca">
-          {ROTULO_CATEGORIA[item.categoria]}
+    <details className="cartao group">
+      <summary className="flex cursor-pointer items-center gap-3 p-3">
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-semibold">{rascunho.nome || 'Sem nome'}</span>
+          <span className="block truncate text-xs text-fumaca">
+            {porPessoaLegivel} por pessoa · {real(rascunho.preco)}
+            {item.unidade === 'kg' ? '/kg' : '/un'} · {ROTULO_CATEGORIA[item.categoria]}
+          </span>
         </span>
-        <CampoTexto
-          valor={rascunho.nome}
-          aoMudar={(v) => setRascunho({ ...rascunho, nome: v })}
-          aria-label="Nome do item"
-        />
-        <button
-          type="button"
-          aria-label={`Remover ${item.nome}`}
-          title="Tira do catálogo sem apagar dos eventos antigos"
-          className="botao botao-linha !min-h-12 !w-12 shrink-0 !px-0 !text-fumaca hover:!border-brasa hover:!text-brasa-clara"
-          onClick={() => aoRemover(item.id)}
-        >
-          ×
-        </button>
+        {/* Avisa que tem edição pendente mesmo com a linha fechada: sem isto,
+            fechar a abinha esconde o botão de salvar e o trabalho se perde. */}
+        {sujo && <span className="shrink-0 text-xs font-semibold text-dourado">alterado</span>}
+        <span className="shrink-0 text-fumaca transition-transform group-open:rotate-90">›</span>
+      </summary>
+
+      <div className="border-t border-borda p-4">
+        <div className="flex items-center gap-2">
+          <span className="shrink-0 rounded-full border border-borda px-2 py-1 text-[0.65rem] text-fumaca">
+            {ROTULO_CATEGORIA[item.categoria]}
+          </span>
+          <CampoTexto
+            valor={rascunho.nome}
+            aoMudar={(v) => setRascunho({ ...rascunho, nome: v })}
+            aria-label="Nome do item"
+          />
+          <button
+            type="button"
+            aria-label={`Remover ${item.nome}`}
+            title="Tira do catálogo sem apagar dos eventos antigos"
+            className="botao botao-linha !min-h-12 !w-12 shrink-0 !px-0 !text-fumaca hover:!border-brasa hover:!text-brasa-clara"
+            onClick={() => aoRemover(item.id)}
+          >
+            ×
+          </button>
+        </div>
+
+        <div className="mt-3 grid grid-cols-3 gap-2">
+          <Campo rotulo="Por pessoa">
+            <CampoNumero
+              valor={rascunho.porPessoa}
+              aoMudar={(v) => setRascunho({ ...rascunho, porPessoa: v })}
+              sufixo={item.unidade === 'kg' ? 'g' : 'un'}
+            />
+          </Campo>
+          <Campo rotulo="Aproveita">
+            <CampoNumero
+              valor={Math.round(rascunho.rendimento * 100)}
+              aoMudar={(v) => setRascunho({ ...rascunho, rendimento: Math.min(100, Math.max(1, v)) / 100 })}
+              sufixo="%"
+            />
+          </Campo>
+          <Campo rotulo="Preço">
+            <CampoNumero
+              valor={rascunho.preco}
+              aoMudar={(v) => setRascunho({ ...rascunho, preco: v })}
+              sufixo={item.unidade === 'kg' ? '/kg' : '/un'}
+            />
+          </Campo>
+        </div>
+
+        <p className="mt-2 text-xs text-fumaca">
+          {item.categoria === 'carne'
+            ? `${inteiro(rascunho.porPessoa)} g no prato exigem comprar ${inteiro(
+                rascunho.porPessoa / (rascunho.rendimento || 1),
+              )} g crus, a ${real(rascunho.preco / (rascunho.rendimento || 1))} por quilo servido.`
+            : `Custa ${real(
+                item.unidade === 'kg' ? (rascunho.porPessoa / 1000) * rascunho.preco : rascunho.porPessoa * rascunho.preco,
+              )} por pessoa.`}
+        </p>
+
+        {sujo && (
+          <button type="button" className="botao botao-brasa mt-3 w-full" onClick={() => aoSalvar(rascunho)}>
+            Salvar alteração
+          </button>
+        )}
       </div>
-
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        <Campo rotulo="Por pessoa">
-          <CampoNumero
-            valor={rascunho.porPessoa}
-            aoMudar={(v) => setRascunho({ ...rascunho, porPessoa: v })}
-            sufixo={item.unidade === 'kg' ? 'g' : 'un'}
-          />
-        </Campo>
-        <Campo rotulo="Aproveita">
-          <CampoNumero
-            valor={Math.round(rascunho.rendimento * 100)}
-            aoMudar={(v) => setRascunho({ ...rascunho, rendimento: Math.min(100, Math.max(1, v)) / 100 })}
-            sufixo="%"
-          />
-        </Campo>
-        <Campo rotulo="Preço">
-          <CampoNumero
-            valor={rascunho.preco}
-            aoMudar={(v) => setRascunho({ ...rascunho, preco: v })}
-            sufixo={item.unidade === 'kg' ? '/kg' : '/un'}
-          />
-        </Campo>
-      </div>
-
-      <p className="mt-2 text-xs text-fumaca">
-        {item.categoria === 'carne'
-          ? `${inteiro(rascunho.porPessoa)} g no prato exigem comprar ${inteiro(
-              rascunho.porPessoa / (rascunho.rendimento || 1),
-            )} g crus, a ${real(rascunho.preco / (rascunho.rendimento || 1))} por quilo servido.`
-          : `Custa ${real(
-              item.unidade === 'kg' ? (rascunho.porPessoa / 1000) * rascunho.preco : rascunho.porPessoa * rascunho.preco,
-            )} por pessoa.`}
-      </p>
-
-      {sujo && (
-        <button type="button" className="botao botao-brasa mt-3 w-full" onClick={() => aoSalvar(rascunho)}>
-          Salvar alteração
-        </button>
-      )}
-    </div>
+    </details>
   );
 }

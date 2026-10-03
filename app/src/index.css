@@ -30,6 +30,29 @@
        precisam concordar com ela: a própria nav, o respiro do conteúdo e a
        barra de digitação do assistente, que senão fica por cima dela. */
     --altura-nav: 4.25rem;
+
+    /* Largura do menu lateral. Zero enquanto ele não existe, que é no
+       celular. */
+    --largura-menu: 0rem;
+  }
+
+  /*
+    No computador o menu vira coluna e a barra de baixo some.
+
+    As duas medidas trocam de lugar aqui, e só aqui. A nav do rodapé, o respiro
+    do conteúdo, a barra de digitação do assistente e o rodapé fixo do editor
+    já liam essas variáveis para se posicionar: mudando as duas, os quatro se
+    recolocam sozinhos. Sem isto, a barra do assistente flutuaria a 4,25rem do
+    chão sobre um rodapé que não está mais lá.
+
+    64rem é onde cabe o menu de 15rem sem espremer o conteúdo. Abaixo disso é
+    tablet em pé, que se dá melhor com a barra embaixo.
+  */
+  @media (width >= 64rem) {
+    :root {
+      --altura-nav: 0rem;
+      --largura-menu: 15rem;
+    }
   }
 
   html {
@@ -164,4 +187,251 @@
   font-size: clamp(1.5rem, 5vw, 2rem);
   line-height: 1;
   color: var(--color-dourado);
+}
+
+/* ========================================================================
+   Proposta do cliente
+
+   É o único lugar do app que não é escuro, e por um motivo prático: sai em
+   papel, e fundo carvão numa folha A4 gasta um cartucho inteiro e sai cinza
+   na impressora de casa. Então ela já nasce clara na tela, e o que o Alan vê
+   antes de mandar é o que o cliente recebe.
+   ======================================================================== */
+
+.proposta-raiz {
+  min-height: 100svh;
+  background-color: #51463c;
+  padding-bottom: 3rem;
+}
+
+.proposta-controles {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  border-bottom: 1px solid var(--color-borda);
+  background-color: var(--color-carvao);
+  padding: 0.75rem 1rem;
+}
+
+.proposta {
+  /* 21 cm é a largura de uma folha A4: o que cabe aqui cabe lá. */
+  width: min(100%, 21cm);
+  margin: 1.5rem auto 0;
+  background-color: #ffffff;
+  color: #1a1512;
+  padding: 2.5rem;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  box-shadow: 0 10px 40px rgb(0 0 0 / 0.35);
+}
+
+.proposta-topo {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  border-bottom: 3px solid var(--color-brasa);
+  padding-bottom: 1rem;
+}
+
+.proposta-logo {
+  height: 4.5rem;
+  width: auto;
+}
+
+.proposta-contato {
+  font-size: 0.8rem;
+  color: #6b5d4f;
+}
+
+.proposta-marca {
+  font-family: var(--font-display, inherit);
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #1a1512;
+}
+
+.proposta-titulo {
+  margin-top: 1.5rem;
+  font-size: 1.35rem;
+  font-weight: 700;
+}
+
+.proposta-dados {
+  margin-top: 1rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 1.5rem;
+}
+
+.proposta-dados dt {
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #8a7866;
+}
+
+.proposta-dados dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.proposta-secao {
+  margin-top: 1.75rem;
+}
+
+.proposta-secao h2 {
+  border-bottom: 1px solid #d9cfc2;
+  padding-bottom: 0.3rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-brasa);
+}
+
+.proposta-cardapio {
+  margin-top: 0.85rem;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1rem 1.75rem;
+}
+
+.proposta-grupo h3 {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8a7866;
+}
+
+.proposta-grupo ul,
+.proposta-inclusos {
+  margin: 0.3rem 0 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+}
+
+.proposta-inclusos {
+  margin-top: 0.85rem;
+  columns: 2;
+}
+
+.proposta-tabela {
+  margin-top: 0.85rem;
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.proposta-tabela th,
+.proposta-tabela td {
+  padding: 0.4rem 0.3rem;
+  text-align: left;
+}
+
+.proposta-tabela .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.proposta-tabela thead th {
+  border-bottom: 1px solid #d9cfc2;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8a7866;
+}
+
+.proposta-tabela tfoot td {
+  border-top: 2px solid #1a1512;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.proposta-obs {
+  margin-top: 0.75rem;
+  white-space: pre-wrap;
+}
+
+.proposta-vazio {
+  margin-top: 0.75rem;
+  color: #8a7866;
+}
+
+.proposta-rodape {
+  margin-top: 2rem;
+  border-top: 1px solid #d9cfc2;
+  padding-top: 0.75rem;
+  font-size: 0.72rem;
+  color: #6b5d4f;
+}
+
+@media (width < 40rem) {
+  .proposta {
+    padding: 1.25rem;
+  }
+
+  /* Duas colunas de cardápio numa tela de celular viram duas colunas de uma
+     palavra cada. */
+  .proposta-dados,
+  .proposta-cardapio {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .proposta-inclusos {
+    columns: 1;
+  }
+}
+
+/* ------------------------------------------------------------------ papel */
+@media print {
+  /*
+    No papel só existe a proposta.
+
+    `visibility` em vez de `display: none` no resto: esconder a árvore inteira
+    com display tira a proposta junto, porque ela mora dentro dela.
+  */
+  body * {
+    visibility: hidden;
+  }
+
+  .proposta,
+  .proposta * {
+    visibility: visible;
+  }
+
+  .proposta-controles {
+    display: none !important;
+  }
+
+  .proposta-raiz {
+    background: none;
+    padding: 0;
+  }
+
+  .proposta {
+    position: absolute;
+    inset: 0 auto auto 0;
+    width: 100%;
+    margin: 0;
+    padding: 0;
+    box-shadow: none;
+    font-size: 10.5pt;
+  }
+
+  /* Nenhuma seção parte no meio entre uma folha e a outra. */
+  .proposta-secao,
+  .proposta-grupo,
+  .proposta-tabela tr {
+    break-inside: avoid;
+  }
+
+  @page {
+    size: A4 portrait;
+    margin: 1.4cm;
+  }
 }

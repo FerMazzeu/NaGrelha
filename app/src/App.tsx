@@ -14,17 +14,7 @@ import type { FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from './do
 import { novoId } from './formato';
 import { useGravacaoEnfileirada } from './gravacao';
 import { supabase } from './integrations/supabase/client';
-import { Calendario, Faisca, Lista, Pessoas, Recibo } from './componentes/Icones';
-
-type Aba = 'orcamentos' | 'agenda' | 'equipe' | 'catalogo' | 'assistente';
-
-const ABAS = [
-  { id: 'orcamentos', rotulo: 'Orçamentos', Icone: Recibo },
-  { id: 'agenda', rotulo: 'Agenda', Icone: Calendario },
-  { id: 'equipe', rotulo: 'Equipe', Icone: Pessoas },
-  { id: 'catalogo', rotulo: 'Catálogo', Icone: Lista },
-  { id: 'assistente', rotulo: 'Assistente', Icone: Faisca },
-] satisfies { id: Aba; rotulo: string; Icone: (p: { className?: string }) => React.ReactElement }[];
+import Moldura, { type Aba } from './componentes/Moldura';
 
 /** Serviços que todo evento leva, conforme a planilha do cliente. */
 const SERVICOS_DE_PARTIDA = ['Churrasqueiro', 'Organização (metrê)', 'Imposto (DAS)', 'Caixa'];
@@ -210,46 +200,53 @@ export default function App() {
 
   const aberto = abertoId ? orcamentos.find((o) => o.id === abertoId) ?? null : null;
 
+  /**
+   * Sair para outra tela, de onde quer que a pessoa esteja.
+   *
+   * No computador o menu fica visível com o orçamento aberto, então dá para
+   * pular direto para o Catálogo no meio de uma edição. A gravação é
+   * enfileirada e espera o relógio: sem este `gravarAgora`, o último campo
+   * digitado iria embora e a pessoa acharia que o app comeu o trabalho dela.
+   */
+  const irParaAba = (nova: Aba) => {
+    if (abertoId) gravarAgora();
+    setAbertoId(null);
+    setAba(nova);
+  };
+
+  const moldura = {
+    aba,
+    aoTrocarAba: irParaAba,
+    email: sessao.user.email ?? '',
+    aoSair: () => void supabase.auth.signOut(),
+  };
+
   if (aberto) {
     return (
-      <EditorDeOrcamento
-        orcamento={aberto}
-        membros={membros}
-        servicosDisponiveis={servicos}
-        faixasDisponiveis={faixas}
-        aoMudar={salvar}
-        aoVoltar={() => {
-          // Sair da tela nao pode deixar a ultima edicao esperando o relogio.
-          gravarAgora();
-          setAbertoId(null);
-        }}
-        aoRemover={async () => {
-          setOrcamentos((a) => a.filter((o) => o.id !== aberto.id));
-          setAbertoId(null);
-          await repositorio.removerOrcamento(aberto.id);
-        }}
-      />
+      <Moldura {...moldura}>
+        <EditorDeOrcamento
+          orcamento={aberto}
+          membros={membros}
+          servicosDisponiveis={servicos}
+          faixasDisponiveis={faixas}
+          aoMudar={salvar}
+          aoVoltar={() => {
+            // Sair da tela nao pode deixar a ultima edicao esperando o relogio.
+            gravarAgora();
+            setAbertoId(null);
+          }}
+          aoRemover={async () => {
+            setOrcamentos((a) => a.filter((o) => o.id !== aberto.id));
+            setAbertoId(null);
+            await repositorio.removerOrcamento(aberto.id);
+          }}
+        />
+      </Moldura>
     );
   }
 
   return (
-    <div style={{ paddingBottom: 'var(--altura-nav)' }}>
-      <header className="border-b border-borda">
-        <div className="area flex items-center justify-between py-4">
-          <div>
-            <p className="titulo text-lg text-dourado">Na Grelha</p>
-            <p className="text-xs text-fumaca">{sessao.user.email}</p>
-          </div>
-          <button
-            type="button"
-            className="botao botao-linha !min-h-10 !px-3 text-sm"
-            onClick={() => supabase.auth.signOut()}
-          >
-            Sair
-          </button>
-        </div>
-      </header>
-
+    <Moldura {...moldura}>
       {erro && (
         <div className="area pt-4">
           <p className="rounded-xl border border-brasa/50 bg-brasa/10 p-3 text-sm text-brasa-clara">{erro}</p>
@@ -390,40 +387,6 @@ export default function App() {
         </>
       )}
 
-      {/* Navegação embaixo: o app é usado no celular, com uma mão só. */}
-      {/*
-        Navegação com ícone e rótulo, e alvo de toque cheio.
-        A faixa só de texto miúdo era pequena demais para acertar com o dedo, e
-        o rótulo sozinho não dá para reconhecer de relance.
-      */}
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-borda bg-carvao/95 backdrop-blur">
-        <div className="area flex items-stretch gap-1 py-1.5" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}>
-          {ABAS.map((a) => {
-            const ativa = aba === a.id;
-            return (
-              <button
-                key={a.id}
-                type="button"
-                onClick={() => setAba(a.id)}
-                aria-current={ativa ? 'page' : undefined}
-                className={`relative flex flex-1 flex-col items-center justify-center gap-1 rounded-xl px-1 pb-2 pt-2 transition-colors ${
-                  ativa ? 'bg-carvao-3 text-dourado' : 'text-fumaca hover:text-creme'
-                }`}
-              >
-                {/* traço em cima da aba ativa: dá para ver de relance em qual
-                    tela a pessoa está, mesmo sem distinguir a cor */}
-                <span
-                  className={`absolute inset-x-4 top-0 h-0.5 rounded-full transition-colors ${
-                    ativa ? 'bg-dourado' : 'bg-transparent'
-                  }`}
-                />
-                <a.Icone className="h-5 w-5" />
-                <span className="text-[0.65rem] font-semibold leading-none">{a.rotulo}</span>
-              </button>
-            );
-          })}
-        </div>
-      </nav>
-    </div>
+    </Moldura>
   );
 }

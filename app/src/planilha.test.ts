@@ -321,3 +321,54 @@ describe('o que a planilha muda no catálogo', () => {
     expect(c.novos).toHaveLength(3);
   });
 });
+
+/*
+  Casamento por nome, que é o que a nota de mercado usa.
+
+  O cupom não tem preparo. Sem isto, nenhum produto dele acha par no catálogo
+  e a primeira nota que o Alan fotografar duplica o catálogo inteiro.
+*/
+describe('nota de mercado: casar sem o preparo', () => {
+  const catalogo: Item[] = [
+    { id: 'a', nome: 'Arroz branco', grupo: 'ACOMPANHAMENTO', categoria: 'guarnicao', unidade: 'kg', porPessoa: 100, rendimento: 1, preco: 8 },
+    { id: 'b', nome: 'Bacon', grupo: 'CHURRASCO', categoria: 'carne', unidade: 'kg', porPessoa: 30, rendimento: 1, preco: 40 },
+    { id: 'c', nome: 'Bacon', grupo: 'ARROZ CARRETEIRO', categoria: 'guarnicao', unidade: 'kg', porPessoa: 10, rendimento: 1, preco: 38 },
+  ];
+  const opcoes = {
+    pessoas: 1, atualizarPrecos: true, atualizarQuantidades: false,
+    criarNovos: true, casarSoPorNome: true,
+  };
+  const daNota = (nome: string, preco: number) =>
+    [{ nome, grupo: 'COMPRAS', unidade: 'kg' as const, quantidade: 1, preco, linha: 1 }];
+
+  it('acha o item do catálogo mesmo vindo sem preparo', () => {
+    const c = compararComCatalogo(daNota('Arroz branco', 9.5), catalogo, opcoes);
+
+    expect(c.novos).toHaveLength(0);
+    expect(c.precos[0]).toMatchObject({ de: 8, para: 9.5 });
+  });
+
+  it('ignora acento e caixa, que é como o cupom escreve', () => {
+    const c = compararComCatalogo(daNota('ARROZ BRANCO', 9.5), catalogo, opcoes);
+
+    expect(c.precos[0]?.item.id).toBe('a');
+  });
+
+  it('nome repetido em dois preparos não casa com nenhum dos dois', () => {
+    // Escolher um no escuro escreveria o preço errado sem ninguém ver: o
+    // bacon do churrasco e o do carreteiro têm preço diferente de propósito.
+    const c = compararComCatalogo(daNota('Bacon', 45), catalogo, opcoes);
+
+    expect(c.precos).toHaveLength(0);
+    expect(c.novos).toHaveLength(1);
+  });
+
+  it('sem a opção ligada, nada disso acontece', () => {
+    // A planilha continua casando por nome E preparo, que é o certo lá: o
+    // mesmo ingrediente em dois preparos são duas linhas legítimas.
+    const c = compararComCatalogo(daNota('Arroz branco', 9.5), catalogo, { ...opcoes, casarSoPorNome: false });
+
+    expect(c.precos).toHaveLength(0);
+    expect(c.novos).toHaveLength(1);
+  });
+});

@@ -1,11 +1,11 @@
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { Item } from '../dominio/tipos';
 import { exportarCatalogo } from '../excel';
 import { inteiro } from '../formato';
 import { compararComCatalogo, type Comparacao, type Opcoes } from '../importacao';
-import { lerFotos, MAXIMO_DE_FOTOS } from '../foto-planilha';
+import { lerFotos, MAXIMO_DE_FOTOS, type TipoDeFoto } from '../foto-planilha';
 import { EXPLICACAO, lerArquivo, type PlanilhaLida } from '../planilha';
-import { Arquivo, Imagem } from './Icones';
+import { Arquivo, Imagem, Recibo } from './Icones';
 import Mudancas, { incompleto, type Mudanca, type Rascunho } from './Mudancas';
 
 /**
@@ -46,8 +46,10 @@ export default function ImportarCatalogo({
   const [nomeDoArquivo, setNomeDoArquivo] = useState('');
   /** Foto é leitura de máquina, e a tela precisa dizer isso a quem confere. */
   const [veioDeFoto, setVeioDeFoto] = useState(false);
+  /** Nota de mercado traz preço e mais nada de útil para o prato. */
+  const [veioDeNota, setVeioDeNota] = useState(false);
   const [erro, setErro] = useState('');
-  const [lendo, setLendo] = useState<false | 'arquivo' | 'foto'>(false);
+  const [lendo, setLendo] = useState<false | 'arquivo' | 'foto' | 'nota'>(false);
   const [aplicando, setAplicando] = useState(false);
   const [pronto, setPronto] = useState('');
   const [baixando, setBaixando] = useState(false);
@@ -56,6 +58,14 @@ export default function ImportarCatalogo({
   const [pessoas, setPessoas] = useState(0);
   const [comQuantidade, setComQuantidade] = useState(false);
 
+  /*
+    Produto de nota que não achou par no catálogo começa DESMARCADO.
+
+    O cupom lista "ARROZ TIO JOAO 5KG" e o catálogo tem "Arroz branco": nome
+    de mercado quase nunca bate com nome de receita. Marcado por padrão, um
+    "Aplicar" distraído despeja trinta linhas de supermercado no catálogo, e
+    desfazer isso é item por item. Desmarcado, quem quiser cadastrar marca.
+  */
   const [recusados, setRecusados] = useState<Set<string>>(new Set());
   const [rascunhos, setRascunhos] = useState<Record<string, Rascunho>>({});
 
@@ -66,22 +76,25 @@ export default function ImportarCatalogo({
    * em pedaços e manda os pedaços juntos. Arquivo continua sendo um de cada
    * vez, que é como ele trabalha.
    */
-  const abrir = async (arquivos: File[]) => {
+  const abrir = async (arquivos: File[], tipo: TipoDeFoto = 'planilha') => {
     if (!arquivos.length) return;
     const fotos = arquivos.filter((a) => a.type.startsWith('image/'));
     const porFoto = fotos.length > 0;
+    const porNota = porFoto && tipo === 'nota';
 
     setErro('');
     setPronto('');
-    setLendo(porFoto ? 'foto' : 'arquivo');
+    setLendo(porFoto ? (porNota ? 'nota' : 'foto') : 'arquivo');
     try {
-      const resultado = porFoto ? await lerFotos(fotos) : await lerArquivo(arquivos[0]);
+      const resultado = porFoto ? await lerFotos(fotos, tipo) : await lerArquivo(arquivos[0]);
 
       if (!resultado.itens.length) {
         setErro(
-          porFoto
-            ? 'Não consegui ler item nenhum nessa foto. Tenta de novo com a tabela mais de frente, sem sombra, e com os nomes legíveis.'
-            : 'Não achei item nenhum nessa planilha. Ela precisa ter o preparo numa linha própria e os itens abaixo dele.',
+          porNota
+            ? 'Não consegui ler produto nenhum nessa nota. Cupom de mercado é fino e desbota: tenta a foto mais de perto, em pedaços, com a coluna de preço visível.'
+            : porFoto
+              ? 'Não consegui ler item nenhum nessa foto. Tenta de novo com a tabela mais de frente, sem sombra, e com os nomes legíveis.'
+              : 'Não achei item nenhum nessa planilha. Ela precisa ter o preparo numa linha própria e os itens abaixo dele.',
         );
         setLida(null);
         return;
@@ -89,6 +102,10 @@ export default function ImportarCatalogo({
 
       setLida(resultado);
       setVeioDeFoto(porFoto);
+      setVeioDeNota(porNota);
+      // Nota de mercado não sabe nada de prato: o cupom diz quanto ele
+      // comprou de arroz para a semana, não quanto cada convidado come.
+      if (porNota) setComQuantidade(false);
       setNomeDoArquivo(
         porFoto
           ? fotos.length === 1
@@ -113,12 +130,14 @@ export default function ImportarCatalogo({
     atualizarPrecos: true,
     atualizarQuantidades: comQuantidade && pessoas > 0,
     criarNovos: true,
+    // Cupom não tem preparo: sem isto, nada dele casa com o catálogo.
+    casarSoPorNome: veioDeNota,
   };
 
   const comparacao = useMemo(
     () => (lida ? compararComCatalogo(lida.itens, catalogo, opcoes) : null),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [lida, catalogo, pessoas, comQuantidade],
+    [lida, catalogo, pessoas, comQuantidade, veioDeNota],
   );
 
   /*
@@ -188,6 +207,24 @@ export default function ImportarCatalogo({
     [comparacao, rascunhos, montarLinhas],
   );
 
+  /*
+    Produto de nota que não achou par no catálogo nasce DESMARCADO.
+
+    O cupom lista "ARROZ TIO JOAO 5KG" e o catálogo tem "Arroz branco": nome
+    de mercado quase nunca bate com nome de receita. Marcado por padrão, um
+    "Aplicar" distraído despeja trinta linhas de supermercado no catálogo, e
+    desfazer isso é item por item.
+
+    Isto semeia o conjunto de recusados em vez de filtrar depois, para a
+    caixinha na tela mostrar a verdade e o clique da pessoa continuar mandando
+    nela. Roda uma vez por leitura, e não a cada tecla digitada na tabela.
+  */
+  useEffect(() => {
+    if (!lida || !veioDeNota) return;
+    setRecusados(new Set(linhas.filter((m) => m.tipo === 'novo').map((m) => m.chave)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lida]);
+
   const marcadas = linhas.filter((m) => !recusados.has(m.chave));
   const faltamPreencher = marcadas.filter(incompleto).length;
 
@@ -246,7 +283,7 @@ export default function ImportarCatalogo({
                 {lendo === 'arquivo' ? 'Lendo a planilha...' : 'Escolher planilha do Excel'}
               </span>
               <span className="block truncate text-sm text-fumaca">
-                {nomeDoArquivo || 'Nada muda até você conferir e confirmar'}
+                {nomeDoArquivo || 'O caminho mais exato: nada se perde na leitura'}
               </span>
             </span>
             <input
@@ -292,6 +329,42 @@ export default function ImportarCatalogo({
               disabled={!!lendo}
               onChange={(e) => {
                 abrir([...(e.target.files ?? [])]);
+                e.target.value = '';
+              }}
+            />
+          </label>
+
+          {/*
+            A nota do mercado é um botão à parte, e não uma opção escondida.
+
+            É outro papel e outra pergunta: a planilha diz o que vai no prato,
+            a nota diz quanto custou. Quem acabou de voltar da compra procura a
+            palavra "nota", não "foto da tabela".
+          */}
+          <label
+            className={`cartao flex items-center gap-3 p-4 transition-colors ${
+              lendo ? 'opacity-60' : 'cursor-pointer hover:border-dourado/40'
+            }`}
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-carvao-3 text-dourado">
+              <Recibo className="h-5 w-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-semibold">
+                {lendo === 'nota' ? 'Lendo a nota...' : 'Ou foto da nota do mercado'}
+              </span>
+              <span className="block truncate text-sm text-fumaca">
+                {lendo === 'nota' ? 'Isso leva alguns segundos' : 'Atualiza só os preços, pelo que você pagou'}
+              </span>
+            </span>
+            <input
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              disabled={!!lendo}
+              onChange={(e) => {
+                abrir([...(e.target.files ?? [])], 'nota');
                 e.target.value = '';
               }}
             />
@@ -386,8 +459,9 @@ export default function ImportarCatalogo({
             */}
             {veioDeFoto && (
               <p className="mt-3 rounded-xl border border-dourado/40 bg-dourado/10 p-3 text-sm text-dourado">
-                Isso foi lido da foto, então confira os números antes de confirmar. Preço e
-                quantidade tortos na foto saem tortos aqui.
+                {veioDeNota
+                  ? 'Isso foi lido da nota, então confira os preços antes de confirmar. O que entra aqui é o preço unitário, e não o total da linha.'
+                  : 'Isso foi lido da foto, então confira os números antes de confirmar. Preço e quantidade tortos na foto saem tortos aqui.'}
               </p>
             )}
 
@@ -411,6 +485,9 @@ export default function ImportarCatalogo({
               </details>
             )}
 
+            {/* A nota não tem o que dizer sobre gramatura, então a opção some
+                em vez de ficar lá desmarcada convidando ao engano. */}
+            {!veioDeNota && (
             <label className="mt-3 flex items-start gap-3 border-t border-borda pt-3 text-sm">
               <input
                 type="checkbox"
@@ -425,6 +502,7 @@ export default function ImportarCatalogo({
                 </span>
               </span>
             </label>
+            )}
 
             {comQuantidade && (
               <div className="mt-2 flex items-center gap-2 pl-8">
@@ -456,6 +534,7 @@ export default function ImportarCatalogo({
             }
             aoMudar={(chave, r) => setRascunhos((a) => ({ ...a, [chave]: r }))}
             montarLinhas={montarLinhas}
+            abrirTudo={veioDeNota}
           />
 
           <div className="cartao p-4">
