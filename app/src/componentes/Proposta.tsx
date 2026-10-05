@@ -1,6 +1,8 @@
+import { useEffect, useRef, useState } from 'react';
 import { montarCardapio } from '../dominio/cardapio-do-cliente';
 import type { Orcamento, Resultado } from '../dominio/tipos';
 import { dataCurta, inteiro, real } from '../formato';
+import { baixar, gerarPdfDaProposta, linkDoWhatsApp, nomeDoPdf, podeCompartilhar } from '../pdf-da-proposta';
 
 /**
  * A proposta que vai para o cliente, feita para virar PDF.
@@ -14,10 +16,9 @@ import { dataCurta, inteiro, real } from '../formato';
  * separação é a regra do documento, e não um detalhe de layout: foi a
  * primeira coisa que o Alan perguntou duas vezes na mesma conversa.
  *
- * Vira PDF pelo próprio navegador, com `window.print()` e a opção "Salvar como
- * PDF". É de propósito: nenhuma biblioteca nova, o texto sai vetorial e
- * legível em qualquer zoom, e funciona igual no notebook da Érica e no celular
- * do Alan na rua.
+ * Vira um arquivo PDF de verdade (ver `pdf-da-proposta.ts`), que vai anexado
+ * no WhatsApp: o cliente abre, imprime e mostra para quem precisar. Imprimir
+ * pelo navegador continua aqui para quem quiser o papel direto.
  */
 export default function Proposta({
   orcamento,
@@ -57,6 +58,62 @@ export default function Proposta({
 
   const cobranca = resultado.cobranca.filter((c) => c.quantidade > 0);
 
+  /*
+    O PDF é gerado assim que a tela abre, e não no clique.
+
+    O celular só abre o menu de compartilhar logo depois de um toque. Se o
+    toque ainda tivesse que esperar o PDF ficar pronto, o iPhone recusava o
+    compartilhamento e o botão parecia quebrado. Gerado antes, o toque manda
+    na hora. O arquivo é refeito se a tela mudar (ela não muda aqui dentro,
+    mas o orçamento pode ter sido salvo de novo antes de abrir).
+  */
+  const folha = useRef<HTMLElement>(null);
+  const [pdf, setPdf] = useState<File | null>(null);
+  const [erro, setErro] = useState('');
+  const [aviso, setAviso] = useState('');
+
+  useEffect(() => {
+    let vivo = true;
+    const el = folha.current;
+    if (!el) return;
+    setPdf(null);
+    setErro('');
+    // Espera a logo carregar: sem ela, o PDF sai com um buraco no topo.
+    const logo = el.querySelector('img');
+    const pronta = logo && !logo.complete ? new Promise((r) => logo.addEventListener('load', r, { once: true })) : null;
+    Promise.resolve(pronta)
+      .then(() => gerarPdfDaProposta(el, nomeDoPdf(orcamento.cliente, orcamento.data)))
+      .then((arquivo) => vivo && setPdf(arquivo))
+      .catch((e) => {
+        console.warn('pdf da proposta', e);
+        if (vivo) setErro('Não consegui gerar o PDF. Use "Imprimir" e escolha Salvar como PDF.');
+      });
+    return () => {
+      vivo = false;
+    };
+  }, [orcamento, resultado]);
+
+  const recado = `Olá${orcamento.cliente ? `, ${orcamento.cliente.trim().split(' ')[0]}` : ''}! Segue o orçamento da Na Grelha com Alan Xavier.`;
+
+  const enviar = async () => {
+    if (!pdf) return;
+    setAviso('');
+    if (podeCompartilhar(pdf)) {
+      try {
+        await navigator.share({ files: [pdf], text: recado });
+        return;
+      } catch (e) {
+        // Fechar o menu sem escolher não é erro.
+        if ((e as Error).name === 'AbortError') return;
+      }
+    }
+    // Sem menu de compartilhar (o computador, quase sempre): baixa o arquivo
+    // e abre a conversa do cliente, e lá é só anexar.
+    baixar(pdf);
+    setAviso(`O PDF foi baixado (${pdf.name}). Na conversa que abriu, anexe o arquivo pelo clipe.`);
+    window.open(linkDoWhatsApp(orcamento.contato, recado), '_blank', 'noopener');
+  };
+
   return (
     <div className="proposta-raiz">
       {/* Barra de controle: existe na tela e some no papel. */}
@@ -64,15 +121,26 @@ export default function Proposta({
         <button type="button" className="botao botao-linha !min-h-10 !px-4 text-sm" onClick={aoFechar}>
           Voltar
         </button>
-        <p className="text-sm text-fumaca">
-          Confira e use <strong className="text-creme">Salvar como PDF</strong> no destino da impressão.
-        </p>
-        <button type="button" className="botao botao-brasa !min-h-10 !px-4 text-sm" onClick={() => window.print()}>
-          Salvar PDF
-        </button>
+        <div className="flex flex-wrap gap-2">
+          <button type="button" className="botao botao-linha !min-h-10 !px-4 text-sm" onClick={() => window.print()}>
+            Imprimir
+          </button>
+          <button
+            type="button"
+            className="botao botao-linha !min-h-10 !px-4 text-sm"
+            disabled={!pdf}
+            onClick={() => pdf && baixar(pdf)}
+          >
+            Baixar PDF
+          </button>
+          <button type="button" className="botao botao-brasa !min-h-10 !px-4 text-sm" disabled={!pdf} onClick={enviar}>
+            {pdf ? 'Enviar PDF no WhatsApp' : erro ? 'PDF indisponível' : 'Preparando o PDF...'}
+          </button>
+        </div>
+        {(erro || aviso) && <p className="basis-full text-sm text-fumaca">{erro || aviso}</p>}
       </div>
 
-      <article className="proposta">
+      <article ref={folha} className="proposta">
         <header className="proposta-topo">
           <img src="/logo.png" alt="Na Grelha com Alan Xavier" className="proposta-logo" />
           <div className="proposta-contato">

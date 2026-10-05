@@ -87,6 +87,20 @@ describe('cardápio do cliente', () => {
     expect(frios.pratos[0].ids).toEqual(['pre']);
   });
 
+  it('água em bebidas é opção para marcar, mesmo cadastrada como extra', () => {
+    // Era assim no banco: a água como "extra" ia junto com qualquer bebida.
+    const [bebidas] = montarCardapio([
+      pub('ref', 'REFRIGERANTES 2LTS', 'BEBIDAS', 'bebida'),
+      pub('chp', 'CHOPP', 'BEBIDAS', 'bebida'),
+      pub('agc', 'Agua com gás', 'BEBIDAS', 'extra'),
+      pub('ags', 'Agua sem gás', 'BEBIDAS', 'extra'),
+    ]);
+
+    expect(bebidas.titulo).toBe('Bebidas');
+    expect(bebidas.pratos.map((p) => p.nome)).toEqual(['Refrigerantes 2lts', 'Chopp', 'Agua com gás', 'Agua sem gás']);
+    expect(bebidas.pratos.find((p) => p.chave === 'ref')!.ids).toEqual(['ref']);
+  });
+
   it('a regra dos frios não pega preparo que só contém a palavra', () => {
     // "FRIOSO" não existe, mas a regra é pela palavra inteira, e não por pedaço.
     const secoes = montarCardapio([pub('a', 'Arroz', 'ARROZ FRIOSO', 'guarnicao'), pub('b', 'Sal', 'ARROZ FRIOSO', 'guarnicao')]);

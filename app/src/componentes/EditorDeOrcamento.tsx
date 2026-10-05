@@ -592,11 +592,12 @@ function Resultado({
           <div>
             <p className="rotulo">Proposta em PDF</p>
             <p className="mt-1 text-sm text-fumaca">
-              Para mandar ao cliente, com a logo. Sem custo de insumo e sem o que a equipe ganha.
+              Arquivo com a logo para mandar no WhatsApp: o cliente abre e imprime. Sem custo de insumo e sem
+              o que a equipe ganha.
             </p>
           </div>
           <button type="button" className="botao botao-brasa" onClick={aoVerProposta}>
-            Ver proposta
+            Ver e enviar o PDF
           </button>
         </div>
       </div>
@@ -639,13 +640,15 @@ function Resultado({
           <div className="flex gap-2">
             <BotaoCopiar texto={proposta} />
             {zap.length >= 10 && (
+              // Texto é o plano B: o principal é o PDF, que o cliente consegue
+              // imprimir. Por isso este botão é o de linha, e não o vermelho.
               <a
-                className="botao botao-brasa"
+                className="botao botao-linha"
                 href={`https://wa.me/${zap.length <= 11 ? `55${zap}` : zap}?text=${encodeURIComponent(proposta)}`}
                 target="_blank"
                 rel="noopener noreferrer"
               >
-                Enviar no WhatsApp
+                Mandar como texto
               </a>
             )}
           </div>

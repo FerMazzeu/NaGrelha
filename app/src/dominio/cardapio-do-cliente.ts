@@ -57,7 +57,14 @@ const ESCOLHA_UM_A_UM: Categoria[] = ['carne', 'bebida'];
  * quais quer. E na proposta em PDF, frios e carne são as únicas coisas que ele
  * quer detalhadas.
  */
-const PREPARO_DE_ESCOLHA = /\bfrios\b/i;
+/*
+ * Bebidas entram pela mesma porta. A água do Alan está cadastrada como
+ * "extra" dentro de BEBIDAS, e pela regra da categoria ela ia "junto" com
+ * qualquer bebida marcada, como o sal grosso vai com o corte: o cliente não
+ * tinha caixinha para ela, e todo pedido com refrigerante chegava com água.
+ * Foi o que ele achou testando o link com dois amigos.
+ */
+const PREPARO_DE_ESCOLHA = /\b(frios|bebidas?)\b/i;
 
 /**
  * Preparos que nunca são escolha do cliente.
