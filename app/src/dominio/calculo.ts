@@ -1,4 +1,5 @@
-import type { Apetite, FaixaDeCache, Item, Orcamento, Resultado, Servico, TipoDeEvento } from './tipos';
+import type { Apetite, FaixaDeCache, Item, Orcamento, Resultado, Servico, TipoDeEvento, Unidade } from './tipos';
+import { barrisDeChopp, custoDe, ehChopp } from './unidade';
 
 const FATOR_APETITE: Record<Apetite, number> = {
   leve: 0.85,
@@ -37,8 +38,10 @@ export function totalDeConvidados(orcamento: Pick<Orcamento, 'adultos' | 'faixas
  * unidade é 1. Para cima sempre: faltar carne na festa é um problema de outra
  * ordem de grandeza do que sobrar duzentos gramas.
  */
-export function arredondarCompra(quantidade: number, unidade: 'kg' | 'un') {
+export function arredondarCompra(quantidade: number, unidade: Unidade, nome = '') {
   if (quantidade <= 0) return 0;
+  // Chopp vem em barril: precisar de 70 L é comprar 80, um de 50 e um de 30.
+  if (unidade === 'l' && ehChopp(nome)) return barrisDeChopp(quantidade).reduce((s, b) => s + b, 0);
   const degrau = unidade === 'kg' ? 100 : 1;
   return Math.ceil(quantidade / degrau) * degrau;
 }
@@ -101,8 +104,8 @@ export function calcular(orcamento: Orcamento): Resultado {
     // O aproveitamento é o que separa peso no prato de peso na nota fiscal.
     const rendimento = item.rendimento > 0 ? item.rendimento : 1;
     const bruto = servido / rendimento;
-    const comprar = arredondarCompra(bruto, item.unidade);
-    const custo = item.unidade === 'kg' ? (comprar / 1000) * item.preco : comprar * item.preco;
+    const comprar = arredondarCompra(bruto, item.unidade, item.nome);
+    const custo = custoDe(item.unidade, comprar, item.preco);
     return { item, servido, comprar, custo };
   });
 

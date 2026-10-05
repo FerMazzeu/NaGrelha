@@ -70,6 +70,7 @@ function contextoDoEvento(o: Orcamento | null) {
       `- ${l.item.nome} (${l.item.grupo || ROTULO_CATEGORIA[l.item.categoria]}): comprar ${quantidade(
         l.comprar,
         l.item.unidade,
+        l.item.nome,
       )}, custo ${real(l.custo)}`,
     );
   }

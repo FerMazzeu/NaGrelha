@@ -360,6 +360,24 @@
   list-style: disc;
 }
 
+.proposta-condicoes {
+  margin: 0.75rem 0 0;
+  padding-left: 1.1rem;
+  list-style: disc;
+  font-size: 0.82rem;
+}
+
+.proposta-condicoes li + li {
+  margin-top: 0.3rem;
+}
+
+.proposta-duvidas {
+  margin-top: 0.4rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #1a1512;
+}
+
 .proposta-inclusos {
   margin-top: 0.85rem;
   columns: 2;

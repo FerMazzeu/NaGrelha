@@ -4,6 +4,7 @@ import type { Categoria, Item } from '../dominio/tipos';
 import { casaBusca, quantidade as formatarQuantidade, real } from '../formato';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
+import { custoDe, rotuloUnidade, sufixoPorPessoa } from '../dominio/unidade';
 
 /**
  * Cabeçalho de uma receita, com o que ela custa e como acrescentar ingrediente.
@@ -46,7 +47,7 @@ export default function Receita({
     preciso somar item por item na cabeça.
   */
   const custo = itens.reduce(
-    (s, i) => s + (i.unidade === 'kg' ? (i.porPessoa / 1000) * i.preco : i.porPessoa * i.preco),
+    (s, i) => s + custoDe(i.unidade, i.porPessoa, i.preco),
     0,
   );
 
@@ -236,7 +237,7 @@ function NovoIngrediente({
                 >
                   <span className="min-w-0 flex-1 truncate">{s.nome}</span>
                   <span className="shrink-0 text-xs text-fumaca">
-                    {real(s.preco)} por {s.unidade === 'kg' ? 'kg' : 'un'} · {s.grupo}
+                    {real(s.preco)} por {rotuloUnidade(s.unidade)} · {s.grupo}
                   </span>
                 </button>
               ))}
@@ -269,6 +270,7 @@ function NovoIngrediente({
             opcoes={[
               { valor: 'kg', rotulo: 'Quilo' },
               { valor: 'un', rotulo: 'Unidade' },
+              { valor: 'l', rotulo: 'Litro' },
             ]}
           />
         </Campo>
@@ -285,12 +287,18 @@ function NovoIngrediente({
       <div className="mt-2 grid grid-cols-2 gap-2">
         <Campo
           rotulo="Por pessoa"
-          dica={rascunho.unidade === 'kg' ? 'Em gramas, já no prato.' : 'Quantas unidades por convidado.'}
+          dica={
+            rascunho.unidade === 'kg'
+              ? 'Em gramas, já no prato.'
+              : rascunho.unidade === 'l'
+                ? 'Quantos litros por convidado.'
+                : 'Quantas unidades por convidado.'
+          }
         >
           <CampoNumero
             valor={rascunho.porPessoa}
             aoMudar={(v) => setRascunho({ ...rascunho, porPessoa: v })}
-            sufixo={rascunho.unidade === 'kg' ? 'g' : 'un'}
+            sufixo={sufixoPorPessoa(rascunho.unidade)}
             aria-label={`Por pessoa do ingrediente novo em ${preparo}`}
           />
         </Campo>
@@ -314,11 +322,7 @@ function NovoIngrediente({
         <p className="mt-2 text-xs text-fumaca">
           {formatarQuantidade(rascunho.porPessoa, rascunho.unidade)} por pessoa dá{' '}
           <strong className="text-creme">
-            {real(
-              rascunho.unidade === 'kg'
-                ? (rascunho.porPessoa / 1000) * rascunho.preco
-                : rascunho.porPessoa * rascunho.preco,
-            )}
+            {real(custoDe(rascunho.unidade, rascunho.porPessoa, rascunho.preco))}
           </strong>{' '}
           por convidado.
         </p>

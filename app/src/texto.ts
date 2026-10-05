@@ -160,7 +160,7 @@ export function textoDaListaDeCompras(orcamento: Orcamento, resultado: Resultado
     linhas.push(`*${categoria.toUpperCase()}*`);
     for (const item of [...itens].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))) {
       const origem = item.preparos.size > 1 ? `  (${[...item.preparos].join(', ')})` : '';
-      linhas.push(`• ${item.nome}: ${quantidade(item.comprar, item.unidade)}${origem}`);
+      linhas.push(`• ${item.nome}: ${quantidade(item.comprar, item.unidade, item.nome)}${origem}`);
     }
     linhas.push('');
   }

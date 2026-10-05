@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { montarCardapio } from '../dominio/cardapio-do-cliente';
+import { CONTATO_DUVIDAS, condicoesDoEvento } from '../dominio/condicoes';
 import type { Orcamento, Resultado } from '../dominio/tipos';
 import { dataCurta, inteiro, real } from '../formato';
 import { baixar, gerarPdfDaProposta, linkDoWhatsApp, nomeDoPdf, podeCompartilhar } from '../pdf-da-proposta';
@@ -153,6 +154,9 @@ export default function Proposta({
 
         <dl className="proposta-dados">
           <Dado rotulo="Cliente" valor={orcamento.cliente} />
+          {/* O telefone do cliente mora aqui em cima, junto de quem ele é.
+              No rodapé ele parecia ser o telefone da empresa. */}
+          <Dado rotulo="Telefone" valor={telefoneLegivel(orcamento.contato)} />
           <Dado
             rotulo="Data"
             valor={
@@ -247,16 +251,36 @@ export default function Proposta({
           </section>
         )}
 
+        {/* As mesmas do Excel, que é o que o Alan sempre mandou ao cliente. */}
+        <section className="proposta-secao">
+          <h2>Observações importantes</h2>
+          <ul className="proposta-condicoes">
+            {condicoesDoEvento(orcamento.duracaoHoras).map((c) => (
+              <li key={c}>{c}</li>
+            ))}
+          </ul>
+        </section>
+
         <footer className="proposta-rodape">
           <p>
             Valores sujeitos a confirmação de data e número de convidados. O número de convidados pode
             ser ajustado até uma semana antes do evento.
           </p>
-          {orcamento.contato && <p>Contato: {orcamento.contato}</p>}
+          <p className="proposta-duvidas">
+            Dúvidas? Fale com a {CONTATO_DUVIDAS.nome}: {CONTATO_DUVIDAS.telefone} (WhatsApp)
+          </p>
         </footer>
       </article>
     </div>
   );
+}
+
+/** "35999990000" → "(35) 99999-0000". O que não parece telefone fica como veio. */
+function telefoneLegivel(contato: string) {
+  const d = contato.replace(/\D/g, '').replace(/^55(?=\d{10,11}$)/, '');
+  if (d.length === 11) return `(${d.slice(0, 2)}) ${d.slice(2, 7)}-${d.slice(7)}`;
+  if (d.length === 10) return `(${d.slice(0, 2)}) ${d.slice(2, 6)}-${d.slice(6)}`;
+  return contato.trim();
 }
 
 function Dado({ rotulo, valor }: { rotulo: string; valor: string }) {

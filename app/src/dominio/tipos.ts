@@ -9,7 +9,7 @@ export type Categoria =
   | 'limpeza'
   | 'extra';
 
-export type Unidade = 'kg' | 'un';
+export type Unidade = 'kg' | 'un' | 'l';
 
 export type Item = {
   id: string;
@@ -32,7 +32,8 @@ export type Item = {
    * resto é a quantidade no estado em que se compra, porque ninguém pensa
    * em arroz de outro jeito.
    *
-   * Em gramas quando a unidade é kg, e em unidades quando é un.
+   * Em gramas quando a unidade é kg, em unidades quando é un, e em litros
+   * quando é l.
    */
   porPessoa: number;
 
@@ -45,7 +46,7 @@ export type Item = {
    */
   rendimento: number;
 
-  /** Custo por quilo, ou por unidade quando a unidade é `un`. */
+  /** Custo por quilo, por unidade ou por litro, conforme a unidade. */
   preco: number;
 };
 

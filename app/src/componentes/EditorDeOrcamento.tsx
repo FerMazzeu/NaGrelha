@@ -21,6 +21,7 @@ import { textoDaEscala, textoDaListaDeCompras, textoDaProposta } from '../texto'
 import { BotaoCopiar, Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import Proposta from './Proposta';
 import { mensagemDe } from '../erro';
+import { sufixoPorPessoa } from '../dominio/unidade';
 
 const METAS_DE_CARNE = [300, 350, 400, 450, 500];
 
@@ -338,7 +339,7 @@ export default function EditorDeOrcamento({
                               <p className="truncate font-semibold">{item.nome}</p>
                               {linha && (
                                 <p className="text-sm text-fumaca">
-                                  comprar {quantidade(linha.comprar, item.unidade)} · {real(linha.custo)}
+                                  comprar {quantidade(linha.comprar, item.unidade, item.nome)} · {real(linha.custo)}
                                 </p>
                               )}
                             </div>
@@ -352,7 +353,7 @@ export default function EditorDeOrcamento({
                                     ),
                                   })
                                 }
-                                sufixo={item.unidade === 'kg' ? 'g' : 'un'}
+                                sufixo={sufixoPorPessoa(item.unidade)}
                                 aria-label={`${item.nome}, por pessoa`}
                               />
                             </div>

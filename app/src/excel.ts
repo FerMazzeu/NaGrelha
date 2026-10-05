@@ -1,6 +1,8 @@
 import { agruparPorPreparo, ROTULO_CATEGORIA } from './dominio/catalogo';
 import { ROTULO_PAPEL, type Item, type Orcamento, type Resultado } from './dominio/tipos';
 import { dataCurta } from './formato';
+import { naUnidadeDoPreco, rotuloUnidade } from './dominio/unidade';
+import { condicoesDoEvento } from './dominio/condicoes';
 
 /**
  * Exporta o orçamento em Excel, no formato que o cliente já usa.
@@ -130,8 +132,8 @@ export async function montarPlanilha(orcamento: Orcamento, resultado: Resultado)
     for (const item of itens) {
       const l = aba.getRow(linha++);
       l.getCell(1).value = `   ${item.item.nome}`;
-      l.getCell(2).value = item.item.unidade === 'kg' ? 'kg' : 'un';
-      l.getCell(3).value = item.item.unidade === 'kg' ? item.comprar / 1000 : item.comprar;
+      l.getCell(2).value = rotuloUnidade(item.item.unidade);
+      l.getCell(3).value = naUnidadeDoPreco(item.item.unidade, item.comprar);
       l.getCell(3).numFmt = '0.00';
       l.getCell(4).value = item.item.preco;
       l.getCell(4).numFmt = MOEDA;
@@ -196,13 +198,7 @@ export async function montarPlanilha(orcamento: Orcamento, resultado: Resultado)
 
   // ---------------------------------------------------------- condições
   titulo('OBSERVAÇÕES IMPORTANTES');
-  const condicoes = [
-    `O evento tem duração de ${orcamento.duracaoHoras} horas, contando a partir do início.`,
-    'Chegamos sempre cedo para que tudo seja preparado com calma e no padrão Na Grelha de qualidade.',
-    'Sobre o pagamento, pedimos uma entrada ao fechar o evento e o restante em até 4 dias antes.',
-    'Por razões de segurança o buffet não disponibiliza alimentos preparados após o evento, mantendo sob sua propriedade as carnes cruas e insumos não utilizados.',
-    'Nossa equipe é uniformizada e treinada para atender todos da melhor forma. Somos uma empresa familiar.',
-  ];
+  const condicoes = condicoesDoEvento(orcamento.duracaoHoras);
   if (orcamento.observacoes.trim()) condicoes.push(orcamento.observacoes.trim());
 
   for (const c of condicoes) {
@@ -227,8 +223,8 @@ export async function montarPlanilha(orcamento: Orcamento, resultado: Resultado)
     for (const item of itens) {
       const l = compras.addRow([
         `   ${item.item.nome}`,
-        item.item.unidade,
-        item.item.unidade === 'kg' ? item.comprar / 1000 : item.comprar,
+        rotuloUnidade(item.item.unidade),
+        naUnidadeDoPreco(item.item.unidade, item.comprar),
         item.custo,
       ]);
       l.getCell(3).numFmt = '0.00';
@@ -315,7 +311,7 @@ export async function montarCatalogo(itens: Item[], pessoas: number) {
       const comprar = (item.porPessoa * pessoas) / aproveita;
       l.getCell(4).value =
         item.unidade === 'kg' ? Math.round(comprar / 100) / 10 : Math.round(comprar * 100) / 100;
-      l.getCell(5).value = item.unidade === 'kg' ? 'kg' : 'und.';
+      l.getCell(5).value = item.unidade === 'un' ? 'und.' : rotuloUnidade(item.unidade);
       l.getCell(6).value = item.preco;
       l.getCell(6).numFmt = 'R$ #,##0.00';
     }

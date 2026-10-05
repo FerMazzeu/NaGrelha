@@ -64,7 +64,7 @@ export type PlanilhaLida = {
 const UNIDADES = ['und', 'un', 'kg', 'g', 'pc', 'dz', 'pct', 'l', 'ml', 'cx', 'lt'];
 
 /**
- * O catálogo só tem quilo e unidade.
+ * O catálogo tem quilo, unidade e litro.
  *
  * Pacote, dúzia e caixa viram unidade porque é assim que se compra: "3 pacotes"
  * é uma quantidade de pacotes, e o preço na planilha é o preço do pacote.
@@ -76,6 +76,9 @@ function normalizarUnidade(bruto: string): Item['unidade'] | null {
   const limpo = bruto.trim().toLowerCase().replace(/[^a-z]+$/, '');
   if (!limpo) return null;
   if (limpo === 'kg' || limpo === 'quilo' || limpo === 'k') return 'kg';
+  // Litro entrou pelo chopp. "ml" continua unidade: 350 ml é a lata, e o
+  // preço na planilha é o da lata.
+  if (limpo === 'l' || limpo === 'lt' || limpo === 'litro' || limpo === 'litros') return 'l';
   return UNIDADES.includes(limpo) ? 'un' : null;
 }
 

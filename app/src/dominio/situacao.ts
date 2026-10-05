@@ -39,10 +39,21 @@ const quando = (o: Orcamento) => (o.data ? Date.parse(`${o.data}T12:00:00`) : Nu
  *
  * Sem data fica no fim em todos os blocos. É o orçamento que ainda precisa de
  * conversa, e no topo ele empurraria a semana que vem para baixo.
+ *
+ * Menos em "Para validar" e "Orçados": ali o último feito vem primeiro. É
+ * onde o Alan está trabalhando agora, e pela data da festa o orçamento que ele
+ * acabou de criar caía no meio da lista, ou no fim quando ainda não tinha
+ * data. Ele pediu: "o último que eu fizer tem que ficar em cima".
  */
+const POR_CRIACAO: Situacao[] = ['rascunho', 'orcado'];
+
 export function separarPorSituacao(orcamentos: Orcamento[]) {
   return BLOCOS.map((bloco) => {
     const doBloco = orcamentos.filter((o) => o.situacao === bloco.situacao);
+    if (POR_CRIACAO.includes(bloco.situacao)) {
+      doBloco.sort((a, b) => b.criadoEm.localeCompare(a.criadoEm));
+      return { ...bloco, orcamentos: doBloco };
+    }
     doBloco.sort((a, b) => {
       const qa = quando(a);
       const qb = quando(b);

@@ -5,9 +5,10 @@ import ImportarCatalogo from './ImportarCatalogo';
 import TabelasDeCache from './TabelasDeCache';
 import { agruparPorPreparo, CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
 import type { Categoria, FaixaEtaria, Item, Servico } from '../dominio/tipos';
-import { casaBusca, inteiro, real } from '../formato';
+import { casaBusca, decimal, inteiro, real } from '../formato';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
+import { custoDe, OPCOES_DE_UNIDADE, sufixoPorPessoa, sufixoPreco } from '../dominio/unidade';
 
 const VAZIO: Omit<Item, 'id'> = {
   nome: '',
@@ -188,10 +189,7 @@ export default function Catalogo({
             <Segmentado<Item['unidade']>
               valor={novo.unidade}
               aoMudar={(v) => setNovo({ ...novo, unidade: v })}
-              opcoes={[
-                { valor: 'kg', rotulo: 'Por quilo' },
-                { valor: 'un', rotulo: 'Por unidade' },
-              ]}
+              opcoes={OPCOES_DE_UNIDADE}
             />
           </Campo>
 
@@ -200,7 +198,7 @@ export default function Catalogo({
               <CampoNumero
                 valor={novo.porPessoa}
                 aoMudar={(v) => setNovo({ ...novo, porPessoa: v })}
-                sufixo={novo.unidade === 'kg' ? 'g' : 'un'}
+                sufixo={sufixoPorPessoa(novo.unidade)}
               />
             </Campo>
             <Campo rotulo="Aproveita">
@@ -214,7 +212,7 @@ export default function Catalogo({
               <CampoNumero
                 valor={novo.preco}
                 aoMudar={(v) => setNovo({ ...novo, preco: v })}
-                sufixo={novo.unidade === 'kg' ? '/kg' : '/un'}
+                sufixo={sufixoPreco(novo.unidade)}
               />
             </Campo>
           </div>
@@ -323,7 +321,7 @@ function LinhaDeItem({
     em vez de um `useState`: o teclado, o leitor de tela e o Ctrl+F do
     navegador já sabem lidar com ela de graça.
   */
-  const porPessoaLegivel = `${inteiro(rascunho.porPessoa)} ${item.unidade === 'kg' ? 'g' : 'un'}`;
+  const porPessoaLegivel = `${rascunho.unidade === 'l' ? decimal(rascunho.porPessoa) : inteiro(rascunho.porPessoa)} ${sufixoPorPessoa(rascunho.unidade)}`;
 
   return (
     <details className="cartao group">
@@ -332,7 +330,7 @@ function LinhaDeItem({
           <span className="block truncate font-semibold">{rascunho.nome || 'Sem nome'}</span>
           <span className="block truncate text-xs text-fumaca">
             {porPessoaLegivel} por pessoa · {real(rascunho.preco)}
-            {item.unidade === 'kg' ? '/kg' : '/un'} · {ROTULO_CATEGORIA[item.categoria]}
+            {sufixoPreco(rascunho.unidade)} · {ROTULO_CATEGORIA[item.categoria]}
           </span>
         </span>
         {/* Avisa que tem edição pendente mesmo com a linha fechada: sem isto,
@@ -362,12 +360,27 @@ function LinhaDeItem({
           </button>
         </div>
 
+        {/*
+          A unidade troca aqui também, e não só no item novo: o chopp foi
+          cadastrado por unidade, e o Alan precisava passar ele para litro
+          sem apagar e cadastrar de novo.
+        */}
+        <div className="mt-3">
+          <Campo rotulo="Como se compra">
+            <Segmentado<Item['unidade']>
+              valor={rascunho.unidade}
+              aoMudar={(v) => setRascunho({ ...rascunho, unidade: v })}
+              opcoes={OPCOES_DE_UNIDADE}
+            />
+          </Campo>
+        </div>
+
         <div className="mt-3 grid grid-cols-3 gap-2">
           <Campo rotulo="Por pessoa">
             <CampoNumero
               valor={rascunho.porPessoa}
               aoMudar={(v) => setRascunho({ ...rascunho, porPessoa: v })}
-              sufixo={item.unidade === 'kg' ? 'g' : 'un'}
+              sufixo={sufixoPorPessoa(rascunho.unidade)}
             />
           </Campo>
           <Campo rotulo="Aproveita">
@@ -381,7 +394,7 @@ function LinhaDeItem({
             <CampoNumero
               valor={rascunho.preco}
               aoMudar={(v) => setRascunho({ ...rascunho, preco: v })}
-              sufixo={item.unidade === 'kg' ? '/kg' : '/un'}
+              sufixo={sufixoPreco(rascunho.unidade)}
             />
           </Campo>
         </div>
@@ -392,7 +405,7 @@ function LinhaDeItem({
                 rascunho.porPessoa / (rascunho.rendimento || 1),
               )} g crus, a ${real(rascunho.preco / (rascunho.rendimento || 1))} por quilo servido.`
             : `Custa ${real(
-                item.unidade === 'kg' ? (rascunho.porPessoa / 1000) * rascunho.preco : rascunho.porPessoa * rascunho.preco,
+                custoDe(rascunho.unidade, rascunho.porPessoa, rascunho.preco),
               )} por pessoa.`}
         </p>
 

@@ -4,6 +4,7 @@ import type { Categoria, Item } from '../dominio/tipos';
 import { casaBusca, inteiro, real } from '../formato';
 import type { Comparacao } from '../importacao';
 import { Lupa } from './Icones';
+import { custoDe, rotuloUnidade, sufixoPorPessoa } from '../dominio/unidade';
 
 /**
  * Tudo que a planilha vai mudar, numa tabela só.
@@ -228,8 +229,8 @@ function Linha({
   const novo = mudanca.tipo === 'novo';
   const oQueMuda = resumo(mudanca);
 
-  const unidadeCurta = r.unidade === 'kg' ? 'kg' : 'un';
-  const custo = r.unidade === 'kg' ? (r.porPessoa / 1000) * r.preco : r.porPessoa * r.preco;
+  const unidadeCurta = rotuloUnidade(r.unidade);
+  const custo = custoDe(r.unidade, r.porPessoa, r.preco);
 
   const numero = (
     valor: number,
@@ -300,7 +301,7 @@ function Linha({
 
             <span className={`block text-xs ${r.porPessoa > 0 ? 'text-fumaca' : 'text-dourado'}`}>
               {r.porPessoa > 0
-                ? `${r.porPessoa} ${r.unidade === 'kg' ? 'g' : 'un'} por pessoa`
+                ? `${r.porPessoa} ${sufixoPorPessoa(r.unidade)} por pessoa`
                 : novo
                   ? 'falta a quantidade'
                   : ''}
@@ -319,16 +320,19 @@ function Linha({
               r.porPessoa,
               (v) => aoMudar({ ...r, porPessoa: v }),
               'Por pessoa',
-              r.unidade === 'kg' ? 'g' : 'un',
+              sufixoPorPessoa(r.unidade),
               novo && r.porPessoa <= 0,
             )}
             {novo && (
               <button
                 type="button"
-                onClick={() => aoMudar({ ...r, unidade: r.unidade === 'kg' ? 'un' : 'kg' })}
+                // Gira quilo → unidade → litro, um toque por vez.
+                onClick={() =>
+                  aoMudar({ ...r, unidade: r.unidade === 'kg' ? 'un' : r.unidade === 'un' ? 'l' : 'kg' })
+                }
                 className="h-11 shrink-0 rounded-xl border border-borda px-3 text-sm text-fumaca transition-colors hover:border-dourado/50 hover:text-dourado"
                 aria-label={`Unidade de ${r.nome}`}
-                title="Trocar entre quilo e unidade"
+                title="Trocar entre quilo, unidade e litro"
               >
                 {unidadeCurta}
               </button>
@@ -344,11 +348,7 @@ function Linha({
                 {!novo && mudanca.precoAtual !== null && (
                   <>
                     , contra{' '}
-                    {real(
-                      r.unidade === 'kg'
-                        ? ((mudanca.porPessoaAtual ?? r.porPessoa) / 1000) * mudanca.precoAtual
-                        : (mudanca.porPessoaAtual ?? r.porPessoa) * mudanca.precoAtual,
-                    )}{' '}
+                    {real(custoDe(r.unidade, mudanca.porPessoaAtual ?? r.porPessoa, mudanca.precoAtual))}{' '}
                     hoje
                   </>
                 )}

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { separarPorSituacao } from './situacao';
 import type { Orcamento, Situacao } from './tipos';
 
-const faz = (cliente: string, situacao: Situacao, data = '') => ({ id: cliente, cliente, situacao, data }) as Orcamento;
+const faz = (cliente: string, situacao: Situacao, data = '', criadoEm = '2026-10-01T10:00:00Z') =>
+  ({ id: cliente, cliente, situacao, data, criadoEm }) as Orcamento;
 
 describe('lista de orçamentos separada por situação', () => {
   it('o confirmado não se perde no meio dos orçados', () => {
@@ -25,20 +26,31 @@ describe('lista de orçamentos separada por situação', () => {
     expect(blocos.map((b) => b.situacao)).toEqual(['rascunho', 'confirmado', 'orcado']);
   });
 
-  it('o que vai acontecer sai do mais próximo para o mais longe', () => {
-    const [orcados] = separarPorSituacao([
-      faz('Novembro', 'orcado', '2026-11-20'),
-      faz('Outubro', 'orcado', '2026-10-24'),
-      faz('Ano que vem', 'orcado', '2027-10-27'),
+  it('o confirmado sai do mais próximo para o mais longe', () => {
+    const [confirmados] = separarPorSituacao([
+      faz('Novembro', 'confirmado', '2026-11-20'),
+      faz('Outubro', 'confirmado', '2026-10-24'),
+      faz('Ano que vem', 'confirmado', '2027-10-27'),
     ]);
 
-    expect(orcados.orcamentos.map((o) => o.cliente)).toEqual(['Outubro', 'Novembro', 'Ano que vem']);
+    expect(confirmados.orcamentos.map((o) => o.cliente)).toEqual(['Outubro', 'Novembro', 'Ano que vem']);
   });
 
-  it('sem data vai para o fim, e não para o topo', () => {
-    const [orcados] = separarPorSituacao([faz('Sicrana', 'orcado'), faz('Ciclana', 'orcado', '2026-10-24')]);
+  it('confirmado sem data vai para o fim, e não para o topo', () => {
+    const [confirmados] = separarPorSituacao([faz('Sicrana', 'confirmado'), faz('Ciclana', 'confirmado', '2026-10-24')]);
 
-    expect(orcados.orcamentos.map((o) => o.cliente)).toEqual(['Ciclana', 'Sicrana']);
+    expect(confirmados.orcamentos.map((o) => o.cliente)).toEqual(['Ciclana', 'Sicrana']);
+  });
+
+  it('nos orçados, o último feito fica em cima, qualquer que seja a data da festa', () => {
+    // O pedido do Alan: "o último que eu fizer tem que ficar em cima".
+    const [orcados] = separarPorSituacao([
+      faz('Primeiro', 'orcado', '2026-10-24', '2026-10-01T10:00:00Z'),
+      faz('Sem data, de agora', 'orcado', '', '2026-10-05T18:00:00Z'),
+      faz('Segundo', 'orcado', '2027-01-10', '2026-10-03T09:00:00Z'),
+    ]);
+
+    expect(orcados.orcamentos.map((o) => o.cliente)).toEqual(['Sem data, de agora', 'Segundo', 'Primeiro']);
   });
 
   it('o histórico sai do mais recente para o mais antigo', () => {
