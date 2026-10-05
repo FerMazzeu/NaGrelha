@@ -209,6 +209,8 @@ async function logo() {
     fotos/62.jpg, aqui e no site.
   */
   await sharp(claro, cru).trim({ threshold: 1 }).png().toFile(`${raiz}/app/public/logo.png`);
+  // A escura vai para a página que o cliente abre pelo link, que é carvão.
+  await sharp(escuro, cru).trim({ threshold: 1 }).png().toFile(`${raiz}/app/public/logo-escuro.png`);
   await sharp(origem).resize(512, 512, { fit: 'cover' }).png().toFile(`${PUBLICO}/favicon.png`);
 
   // og:image precisa de fundo: transparencia vira preto em varios leitores
@@ -218,7 +220,7 @@ async function logo() {
     .jpeg({ quality: 88 })
     .toFile(`${PUBLICO}/og.jpg`);
 
-  return ['logo.png', 'logo-escuro.png', 'public/favicon.png', 'public/og.jpg', 'app/public/logo.png'];
+  return ['logo.png', 'logo-escuro.png', 'public/favicon.png', 'public/og.jpg', 'app/public/logo.png', 'app/public/logo-escuro.png'];
 }
 
 mkdirSync(DESTINO, { recursive: true });

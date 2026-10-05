@@ -1,14 +1,7 @@
 import { useMemo, useState } from 'react';
 import { calcular, totalDeConvidados } from '../dominio/calculo';
-import { ROTULO_SITUACAO, type Orcamento, type Situacao } from '../dominio/tipos';
+import { COR_SITUACAO, ROTULO_SITUACAO, type Orcamento, type Situacao } from '../dominio/tipos';
 import { inteiro, real } from '../formato';
-
-const CORES: Record<Situacao, string> = {
-  orcado: 'border-fumaca/40 text-fumaca',
-  confirmado: 'border-verde/60 text-verde',
-  realizado: 'border-dourado/60 text-dourado',
-  perdido: 'border-brasa/50 text-brasa-clara',
-};
 
 const MESES = [
   'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
@@ -59,7 +52,7 @@ export default function Agenda({
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
-        {(['todos', 'orcado', 'confirmado', 'realizado', 'perdido'] as const).map((s) => (
+        {(['todos', 'rascunho', 'orcado', 'confirmado', 'realizado', 'perdido'] as const).map((s) => (
           <button
             key={s}
             type="button"
@@ -141,7 +134,7 @@ function CartaoDeEvento({ orcamento, aoAbrir }: { orcamento: Orcamento; aoAbrir:
 
       <div className="shrink-0 text-right">
         <p className="font-display text-lg uppercase text-dourado">{real(r.preco)}</p>
-        <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-xs ${CORES[orcamento.situacao]}`}>
+        <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-xs ${COR_SITUACAO[orcamento.situacao]}`}>
         {ROTULO_SITUACAO[orcamento.situacao]}
         </span>
       </div>

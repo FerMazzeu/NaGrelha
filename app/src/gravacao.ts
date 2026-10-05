@@ -1,4 +1,5 @@
 import { useEffect, useMemo } from 'react';
+import { mensagemDe } from './erro';
 
 /**
  * Fila de gravação: uma por vez, e só a última versão vale.
@@ -43,7 +44,7 @@ export function criarFila<T extends { id: string }>(
         try {
           await gravar(valor);
         } catch (e) {
-          aoFalhar(e instanceof Error ? e.message : String(e));
+          aoFalhar(mensagemDe(e));
         }
       }
     } finally {

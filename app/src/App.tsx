@@ -7,61 +7,15 @@ import EditorDeOrcamento from './componentes/EditorDeOrcamento';
 import Entrar from './componentes/Entrar';
 import Equipe from './componentes/Equipe';
 import ListaDeOrcamentos from './componentes/ListaDeOrcamentos';
+import { converterPedidosPendentes } from './dados/pedidos';
 import { repositorio } from './dados/supabase';
-import { FATOR_CARVAO_PADRAO, MARGEM_PADRAO, PRECO_CARVAO_PADRAO, SELECAO_PADRAO } from './dominio/catalogo';
-import { valorSugerido } from './dominio/calculo';
 import type { FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from './dominio/tipos';
 import { novoId } from './formato';
+import { orcamentoNovo } from './dominio/orcamento-novo';
 import { useGravacaoEnfileirada } from './gravacao';
 import { supabase } from './integrations/supabase/client';
 import Moldura, { type Aba } from './componentes/Moldura';
-
-/** Serviços que todo evento leva, conforme a planilha do cliente. */
-const SERVICOS_DE_PARTIDA = ['Churrasqueiro', 'Organização (metrê)', 'Imposto (DAS)', 'Caixa'];
-
-function orcamentoNovo(catalogo: Item[], servicos: Servico[], adultos = 30): Orcamento {
-  const agora = new Date().toISOString();
-  return {
-    id: novoId(),
-    cliente: '',
-    contato: '',
-    data: '',
-    hora: '',
-    local: '',
-    observacoes: '',
-    situacao: 'orcado',
-    tipoEvento: 'aniversario',
-    adultos,
-    faixas: [],
-    apetite: 'normal',
-    duracaoHoras: 5,
-    // Cópia do catálogo: o preço da picanha muda, o orçamento fechado não.
-    itens: catalogo.map((i) => ({ ...i })),
-    // Por nome, e nao por id: os ids agora vem do banco e mudam por projeto.
-    selecionados: catalogo.filter((i) => SELECAO_PADRAO.includes(i.nome)).map((i) => i.id),
-    // Já vem com o básico: esquecer a linha de serviço é o erro mais caro
-    // possível aqui, porque ela sozinha passa dos insumos no orçamento deles.
-    servicos: servicos
-      .filter((s) => SERVICOS_DE_PARTIDA.includes(s.nome))
-      .map((s) => ({
-        id: `novo-${s.id}`,
-        servicoId: s.id,
-        nome: s.nome,
-        papel: s.papel,
-        pessoa: '',
-        percentual: s.percentual,
-        valorManual: false,
-        quantidade: 1,
-        valor: valorSugerido(s, adultos),
-      })),
-    custosExtras: [],
-    margem: MARGEM_PADRAO,
-    fatorCarvao: FATOR_CARVAO_PADRAO,
-    precoCarvao: PRECO_CARVAO_PADRAO,
-    criadoEm: agora,
-    atualizadoEm: agora,
-  };
-}
+import { mensagemDe } from './erro';
 
 export default function App() {
   const [sessao, setSessao] = useState<Session | null>(null);
@@ -123,8 +77,24 @@ export default function App() {
       setFaixas(fx);
       setPerfis(pf);
       setSouDono(dono);
+
+      /*
+        Pedido que o cliente mandou pelo link vira rascunho aqui.
+
+        Sem `await`: a lista aparece na hora com o que já existe, e o rascunho
+        novo entra no topo quando fica pronto. Esperar a conversão atrasaria a
+        abertura do app toda vez, inclusive quando não tem pedido nenhum.
+      */
+      converterPedidosPendentes({
+        catalogo: c,
+        servicos: sv,
+        faixas: fx,
+        salvar: (orcamento) => repositorio.salvarOrcamento(orcamento),
+      }).then((doLink) => {
+        if (doLink.length) setOrcamentos((atuais) => [...doLink, ...atuais]);
+      });
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      setErro(mensagemDe(e));
     } finally {
       setCarregando(false);
     }
@@ -170,7 +140,7 @@ export default function App() {
     try {
       await repositorio.salvarOrcamento(o);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      setErro(mensagemDe(e));
     }
   };
 
@@ -342,7 +312,7 @@ export default function App() {
                 try {
                   await repositorio.salvarFaixaEtaria(faixa);
                 } catch (e) {
-                  setErro(e instanceof Error ? e.message : String(e));
+                  setErro(mensagemDe(e));
                 }
               }}
               aoCriarFaixa={async (faixa) => {
@@ -350,7 +320,7 @@ export default function App() {
                   const criada = await repositorio.criarFaixaEtaria(faixa);
                   setFaixas((a) => [...a, criada]);
                 } catch (e) {
-                  setErro(e instanceof Error ? e.message : String(e));
+                  setErro(mensagemDe(e));
                 }
               }}
               aoRemoverFaixa={async (id) => {
@@ -358,7 +328,7 @@ export default function App() {
                 try {
                   await repositorio.removerFaixaEtaria(id);
                 } catch (e) {
-                  setErro(e instanceof Error ? e.message : String(e));
+                  setErro(mensagemDe(e));
                 }
               }}
               aoSalvarServico={async (servico) => {
@@ -368,7 +338,7 @@ export default function App() {
                 try {
                   await repositorio.salvarServico(servico);
                 } catch (e) {
-                  setErro(e instanceof Error ? e.message : String(e));
+                  setErro(mensagemDe(e));
                 }
               }}
             />

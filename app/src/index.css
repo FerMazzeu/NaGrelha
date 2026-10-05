@@ -56,6 +56,10 @@
   }
 
   html {
+    /* Sem isto o navegador acha que a página é clara e desenha barra de
+       rolagem branca, calendário branco e autocompletar branco no meio do
+       carvão. Declarar escuro conserta todos de uma vez. */
+    color-scheme: dark;
     background-color: var(--color-carvao);
     /* o app é usado no celular, no açougue, com uma mão só */
     -webkit-text-size-adjust: 100%;
@@ -83,6 +87,46 @@
   input[type='number']::-webkit-outer-spin-button {
     appearance: none;
     margin: 0;
+  }
+}
+
+/*
+  Barra de rolagem que quase some.
+
+  Dentro de uma caixa arredondada, como a de digitar do assistente, até a
+  barra escura padrão é um trilho largo colado na borda. Esta é fina, sem
+  trilho, e só a alça aparece, na cor do texto apagado.
+*/
+@utility rolagem-discreta {
+  &::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  /* As setinhas em cima e embaixo eram metade do problema: um trilho de
+     6px com dois botões é mais barulho que barra. */
+  &::-webkit-scrollbar-button {
+    display: none;
+  }
+
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  &::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background-color: color-mix(in srgb, var(--color-fumaca) 35%, transparent);
+  }
+
+  /*
+    O jeito padrão, só para quem não entende o de cima (Firefox).
+
+    No Chrome, declarar `scrollbar-width` desliga todo o `::-webkit-scrollbar`,
+    e com ele o `display: none` das setinhas: elas voltavam, apagadas, nas
+    duas pontas da caixa.
+  */
+  @supports not selector(::-webkit-scrollbar) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--color-fumaca) 35%, transparent) transparent;
   }
 }
 

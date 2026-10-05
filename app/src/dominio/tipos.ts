@@ -58,14 +58,38 @@ export type CustoExtra = {
 /** O apetite multiplica todo mundo de uma vez, sem mexer item por item. */
 export type Apetite = 'leve' | 'normal' | 'forte';
 
-/** O funil do evento. É o que a agenda usa para colorir e separar. */
-export type Situacao = 'orcado' | 'confirmado' | 'realizado' | 'perdido';
+/**
+ * O funil do evento. É o que a agenda usa para colorir e separar.
+ *
+ * `rascunho` é o pedido que o próprio cliente montou pelo link: os dados e o
+ * cardápio são dele, o preço ainda não foi conferido por ninguém. Vira
+ * `orcado` quando alguém da equipe valida e manda a proposta.
+ */
+export type Situacao = 'rascunho' | 'orcado' | 'confirmado' | 'realizado' | 'perdido';
 
 export const ROTULO_SITUACAO: Record<Situacao, string> = {
+  rascunho: 'Para validar',
   orcado: 'Orçado',
   confirmado: 'Confirmado',
   realizado: 'Realizado',
   perdido: 'Perdido',
+};
+
+/**
+ * Cor de cada situação, a mesma em toda tela.
+ *
+ * Morava só na agenda, e a lista de orçamentos mostrava "Confirmado" no mesmo
+ * cinza de "Orçado". O Alan olhou a lista e não achou o único evento
+ * confirmado, perdido no meio de seis propostas.
+ *
+ * Verde é dinheiro fechado. Dourado é o que pede ação da equipe agora.
+ */
+export const COR_SITUACAO: Record<Situacao, string> = {
+  rascunho: 'border-dourado/60 text-dourado',
+  orcado: 'border-fumaca/40 text-fumaca',
+  confirmado: 'border-verde/60 text-verde',
+  realizado: 'border-creme/30 text-creme/70',
+  perdido: 'border-brasa/50 text-brasa-clara',
 };
 
 /** Equipe cobra por pessoa no evento; imposto e caixa sao linha fixa. */

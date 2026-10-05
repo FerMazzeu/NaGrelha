@@ -20,6 +20,7 @@ import { exportarOrcamento } from '../excel';
 import { textoDaEscala, textoDaListaDeCompras, textoDaProposta } from '../texto';
 import { BotaoCopiar, Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import Proposta from './Proposta';
+import { mensagemDe } from '../erro';
 
 const METAS_DE_CARNE = [300, 350, 400, 450, 500];
 
@@ -135,7 +136,7 @@ export default function EditorDeOrcamento({
               <Segmentado<Situacao>
                 valor={orcamento.situacao}
                 aoMudar={(v) => mudar({ situacao: v })}
-                opcoes={(['orcado', 'confirmado', 'realizado', 'perdido'] as const).map((v) => ({
+                opcoes={(['rascunho', 'orcado', 'confirmado', 'realizado', 'perdido'] as const).map((v) => ({
                   valor: v,
                   rotulo: ROTULO_SITUACAO[v],
                 }))}
@@ -620,7 +621,7 @@ function Resultado({
               try {
                 await exportarOrcamento(orcamento, resultado);
               } catch (e) {
-                setErroExport(e instanceof Error ? e.message : String(e));
+                setErroExport(mensagemDe(e));
               } finally {
                 setExportando(false);
               }

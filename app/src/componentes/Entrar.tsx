@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { supabase } from '../integrations/supabase/client';
 import { Campo, CampoTexto } from './Campos';
+import { mensagemDe } from '../erro';
 
 /**
  * Entrada do app.
@@ -108,7 +109,7 @@ export default function Entrar() {
 
 /** As mensagens do Supabase chegam em inglês e cruas. */
 function traduzir(e: unknown) {
-  const bruto = e instanceof Error ? e.message : String(e);
+  const bruto = mensagemDe(e);
   if (/invalid login credentials/i.test(bruto)) return 'E-mail ou senha não conferem.';
   if (/user already registered/i.test(bruto)) return 'Esse e-mail já tem conta. Tente entrar.';
   if (/password should be at least/i.test(bruto)) return 'A senha precisa de pelo menos 6 caracteres.';

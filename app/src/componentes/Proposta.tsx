@@ -1,4 +1,4 @@
-import { agruparPorPreparo } from '../dominio/catalogo';
+import { montarCardapio } from '../dominio/cardapio-do-cliente';
 import type { Orcamento, Resultado } from '../dominio/tipos';
 import { dataCurta, inteiro, real } from '../formato';
 
@@ -28,8 +28,20 @@ export default function Proposta({
   resultado: Resultado;
   aoFechar: () => void;
 }) {
-  const selecionados = orcamento.itens.filter((i) => orcamento.selecionados.includes(i.id));
-  const grupos = agruparPorPreparo(selecionados);
+  /*
+    Detalhe só onde o cliente escolhe: carne e frios.
+
+    A primeira versão listava tudo que estava marcado, por preparo, e o
+    catálogo é uma lista de COMPRA: a maionese aparecia como "batata, alho,
+    cenoura". O Alan pediu o detalhamento só dos cortes e dos frios; o resto
+    entra pelo nome do prato. É a mesma regra do cardápio que o cliente marca
+    pelo link, para a proposta falar a mesma língua do pedido dele.
+  */
+  const secoes = montarCardapio(
+    orcamento.itens
+      .filter((i) => orcamento.selecionados.includes(i.id))
+      .map((i, ordem) => ({ id: i.id, nome: i.nome, grupo: i.grupo, categoria: i.categoria, ordem })),
+  );
 
   /*
     Só a equipe entra em "o que está incluso".
@@ -65,7 +77,7 @@ export default function Proposta({
           <img src="/logo.png" alt="Na Grelha com Alan Xavier" className="proposta-logo" />
           <div className="proposta-contato">
             <p className="proposta-marca">Na Grelha com Alan Xavier</p>
-            <p>Churrasco completo para o seu evento</p>
+            <p>Comida boa feita com coração</p>
           </div>
         </header>
 
@@ -89,23 +101,23 @@ export default function Proposta({
         {/* --------------------------------------------------------- cardápio */}
         <section className="proposta-secao">
           <h2>O que vai ser servido</h2>
-          {grupos.length === 0 ? (
+          {secoes.length === 0 ? (
             <p className="proposta-vazio">Nenhum item selecionado ainda.</p>
           ) : (
             <div className="proposta-cardapio">
-              {grupos.map(([grupo, itens]) => (
-                <div key={grupo} className="proposta-grupo">
-                  <h3>{grupo}</h3>
+              {secoes.map((secao) => (
+                <div key={secao.titulo} className="proposta-grupo">
+                  <h3>{secao.titulo}</h3>
                   {/*
-                    Só o nome do prato.
+                    Só o nome, sem quantidade.
 
-                    Quantidade aqui não ajuda e atrapalha: "16,7 kg de picanha"
-                    convida o cliente a discutir gramatura, que é conta interna
-                    do Alan, e muda conforme o apetite e a faixa etária.
+                    "16,7 kg de picanha" convida o cliente a discutir gramatura,
+                    que é conta interna do Alan, e muda conforme o apetite e a
+                    faixa etária.
                   */}
                   <ul>
-                    {itens.map((i) => (
-                      <li key={i.id}>{i.nome}</li>
+                    {secao.pratos.map((p) => (
+                      <li key={p.chave}>{p.nome}</li>
                     ))}
                   </ul>
                 </div>

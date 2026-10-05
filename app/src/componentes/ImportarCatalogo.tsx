@@ -7,6 +7,7 @@ import { lerFotos, MAXIMO_DE_FOTOS, type TipoDeFoto } from '../foto-planilha';
 import { EXPLICACAO, lerArquivo, type PlanilhaLida } from '../planilha';
 import { Arquivo, Imagem, Recibo } from './Icones';
 import Mudancas, { incompleto, type Mudanca, type Rascunho } from './Mudancas';
+import { mensagemDe } from '../erro';
 
 /**
  * Trazer a planilha do Excel para o catálogo.
@@ -117,7 +118,7 @@ export default function ImportarCatalogo({
       setRecusados(new Set());
       setRascunhos({});
     } catch (e) {
-      const recado = e instanceof Error ? e.message : String(e);
+      const recado = mensagemDe(e);
       setErro(porFoto ? recado : `Não consegui abrir o arquivo: ${recado}`);
       setLida(null);
     } finally {
@@ -259,7 +260,7 @@ export default function ImportarCatalogo({
       aoTerminar();
     } catch (e) {
       setErro(
-        `Parou no meio: ${e instanceof Error ? e.message : String(e)}. O que já entrou está salvo, dá para subir a planilha de novo.`,
+        `Parou no meio: ${mensagemDe(e)}. O que já entrou está salvo, dá para subir a planilha de novo.`,
       );
     } finally {
       setAplicando(false);
@@ -403,7 +404,7 @@ export default function ImportarCatalogo({
                     try {
                       await exportarCatalogo(catalogo, pessoas || 80);
                     } catch (e) {
-                      setErro(`Não consegui gerar: ${e instanceof Error ? e.message : String(e)}`);
+                      setErro(`Não consegui gerar: ${mensagemDe(e)}`);
                     } finally {
                       setBaixando(false);
                     }

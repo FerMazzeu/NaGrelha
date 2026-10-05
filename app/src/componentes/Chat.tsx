@@ -12,6 +12,7 @@ import BarraDeEntrada from './BarraDeEntrada';
 import HistoricoDeConversas from './HistoricoDeConversas';
 import { Lista } from './Icones';
 import { Texto } from './Markdown';
+import { mensagemDe } from '../erro';
 
 type Mensagem = {
   id: string;
@@ -139,7 +140,7 @@ export default function Chat({ eventoAberto }: { eventoAberto: Orcamento | null 
     try {
       setConversas(await repositorio.listarConversas());
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      setErro(mensagemDe(e));
     }
   }, []);
 
@@ -180,7 +181,7 @@ export default function Chat({ eventoAberto }: { eventoAberto: Orcamento | null 
       );
       setMensagens(resolvidas);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      setErro(mensagemDe(e));
     }
   };
 
@@ -411,7 +412,7 @@ export default function Chat({ eventoAberto }: { eventoAberto: Orcamento | null 
           },
         ]);
       } else {
-        setErro(e instanceof Error ? e.message : String(e));
+        setErro(mensagemDe(e));
       }
       setParcial('');
       setGerandoImagem('');
@@ -488,7 +489,7 @@ export default function Chat({ eventoAberto }: { eventoAberto: Orcamento | null 
       await recarregarConversas();
       if (criada) gerarTitulo(id);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : String(e));
+      setErro(mensagemDe(e));
     } finally {
       setOcupado(false);
     }

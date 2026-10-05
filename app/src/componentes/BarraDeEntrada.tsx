@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import type { AnexoLocal } from '../midia';
 import { ehAudio, ehImagem, paraWav, prepararAnexo, tamanhoLegivel } from '../midia';
 import { Arquivo, Clipe, Enviar, Fechar, Imagem, Microfone, Parar, Som } from './Icones';
+import { mensagemDe } from '../erro';
 
 /**
  * Barra de digitação do assistente.
@@ -86,7 +87,7 @@ export default function BarraDeEntrada({
       try {
         prontos.push(await prepararAnexo(arquivo));
       } catch (e) {
-        aoErro(e instanceof Error ? e.message : String(e));
+        aoErro(mensagemDe(e));
       }
     }
     setPreparando(false);
@@ -201,7 +202,7 @@ export default function BarraDeEntrada({
             }}
             placeholder={armadoParaImagem ? 'Descreva a imagem que você quer' : 'Pergunte alguma coisa'}
             disabled={ocupado}
-            className="block max-h-44 w-full resize-none border-0 bg-transparent px-2 py-2 text-base leading-relaxed text-creme outline-none placeholder:text-fumaca/70 disabled:opacity-60"
+            className="rolagem-discreta block max-h-44 w-full resize-none border-0 bg-transparent px-2 py-2 text-base leading-relaxed text-creme outline-none placeholder:text-fumaca/70 disabled:opacity-60"
           />
         )}
 
@@ -416,7 +417,7 @@ function useGravador(aoAnexar: (novos: AnexoLocal[]) => void, aoErro: (mensagem:
             ]);
           leitor.readAsDataURL(wav);
         } catch (e) {
-          aoErro(`Não consegui preparar o áudio: ${e instanceof Error ? e.message : String(e)}`);
+          aoErro(`Não consegui preparar o áudio: ${mensagemDe(e)}`);
         }
       };
 
