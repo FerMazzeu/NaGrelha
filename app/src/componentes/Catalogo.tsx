@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import FaixasEtarias from './FaixasEtarias';
 import Receita from './Receita';
 import ImportarCatalogo from './ImportarCatalogo';
@@ -8,7 +8,16 @@ import type { Categoria, FaixaEtaria, Item, Servico } from '../dominio/tipos';
 import { casaBusca, decimal, inteiro, real } from '../formato';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
-import { custoDe, OPCOES_DE_UNIDADE, sufixoPorPessoa, sufixoPreco } from '../dominio/unidade';
+import {
+  custoDe,
+  descreverCompra,
+  escreverEmbalagens,
+  lerEmbalagens,
+  OPCOES_DE_UNIDADE,
+  rotuloUnidade,
+  sufixoPorPessoa,
+  sufixoPreco,
+} from '../dominio/unidade';
 
 const VAZIO: Omit<Item, 'id'> = {
   nome: '',
@@ -217,6 +226,12 @@ export default function Catalogo({
             </Campo>
           </div>
 
+          <CampoEmbalagens
+            valor={novo.embalagens ?? []}
+            unidade={novo.unidade}
+            aoMudar={(v) => setNovo({ ...novo, embalagens: v })}
+          />
+
           <p className="text-xs text-fumaca">
             {novo.categoria === 'carne'
               ? 'Em carne, "por pessoa" é o peso no prato, já assado e sem osso. O aproveitamento faz a conta do que comprar: costela com osso fica perto de 50%, linguiça 85%.'
@@ -307,7 +322,9 @@ function LinhaDeItem({
     rascunho.nome !== item.nome ||
     rascunho.porPessoa !== item.porPessoa ||
     rascunho.rendimento !== item.rendimento ||
-    rascunho.preco !== item.preco;
+    rascunho.preco !== item.preco ||
+    rascunho.unidade !== item.unidade ||
+    escreverEmbalagens(rascunho.embalagens) !== escreverEmbalagens(item.embalagens);
 
   /*
     Fechada, a linha é uma só: nome, quanto vai por pessoa e quanto custa.
@@ -399,6 +416,14 @@ function LinhaDeItem({
           </Campo>
         </div>
 
+        <div className="mt-3">
+          <CampoEmbalagens
+            valor={rascunho.embalagens ?? []}
+            unidade={rascunho.unidade}
+            aoMudar={(v) => setRascunho({ ...rascunho, embalagens: v })}
+          />
+        </div>
+
         <p className="mt-2 text-xs text-fumaca">
           {item.categoria === 'carne'
             ? `${inteiro(rascunho.porPessoa)} g no prato exigem comprar ${inteiro(
@@ -416,5 +441,57 @@ function LinhaDeItem({
         )}
       </div>
     </details>
+  );
+}
+
+/**
+ * "Vem em embalagens de": como o item é COMPRADO, separado de como é consumido.
+ *
+ * O chopp bebe-se em litro e compra-se em barril de 30 ou 50; o guardanapo
+ * usa-se um a um e vem em pacote de 50. Com o tamanho aqui, o orçamento
+ * compra embalagem inteira e a lista de compras diz quantas de cada. Vazio é
+ * o de sempre: compra o quanto precisar.
+ *
+ * O texto fica no estado local enquanto a pessoa digita ("30 e" no meio do
+ * caminho não pode virar [30] e apagar o resto), e a linha de baixo repete o
+ * que foi entendido, porque "30,50" e "30, 50" querem dizer coisas diferentes.
+ */
+function CampoEmbalagens({
+  valor,
+  unidade,
+  aoMudar,
+}: {
+  valor: number[];
+  unidade: Item['unidade'];
+  aoMudar: (v: number[]) => void;
+}) {
+  const [texto, setTexto] = useState(escreverEmbalagens(valor));
+  const lidas = lerEmbalagens(texto);
+
+  // O formulário de item novo zera depois de adicionar: o texto zera junto.
+  useEffect(() => {
+    if (valor.length === 0 && lidas.length > 0) setTexto('');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [valor]);
+  const u = rotuloUnidade(unidade);
+
+  return (
+    <Campo
+      rotulo="Vem em embalagens de"
+      dica={
+        lidas.length
+          ? `Entendi: ${lidas.map((t) => descreverCompra([{ tamanho: t, quantas: 1 }], unidade).replace(/^1 de /, '')).join(' ou ')}. A compra arredonda para embalagens inteiras.`
+          : `Opcional, em ${u}. Ex.: chopp "30 e 50", guardanapo "50". Vazio compra o quanto precisar.`
+      }
+    >
+      <CampoTexto
+        valor={texto}
+        aoMudar={(v) => {
+          setTexto(v);
+          aoMudar(lerEmbalagens(v));
+        }}
+        placeholder={unidade === 'l' ? '30 e 50' : unidade === 'kg' ? '5' : '50'}
+      />
+    </Campo>
   );
 }

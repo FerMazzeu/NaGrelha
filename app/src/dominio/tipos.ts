@@ -48,6 +48,13 @@ export type Item = {
 
   /** Custo por quilo, por unidade ou por litro, conforme a unidade. */
   preco: number;
+
+  /**
+   * Os tamanhos em que o item é vendido, na unidade do preço: o chopp em
+   * barril de 30 e de 50 L é `[30, 50]`. Vazio é "compra o quanto precisar".
+   * Ver `embalagensPara`.
+   */
+  embalagens?: number[];
 };
 
 export type CustoExtra = {

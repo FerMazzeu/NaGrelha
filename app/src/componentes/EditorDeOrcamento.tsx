@@ -339,7 +339,7 @@ export default function EditorDeOrcamento({
                               <p className="truncate font-semibold">{item.nome}</p>
                               {linha && (
                                 <p className="text-sm text-fumaca">
-                                  comprar {quantidade(linha.comprar, item.unidade, item.nome)} · {real(linha.custo)}
+                                  comprar {quantidade(linha.comprar, item.unidade, item.embalagens)} · {real(linha.custo)}
                                 </p>
                               )}
                             </div>

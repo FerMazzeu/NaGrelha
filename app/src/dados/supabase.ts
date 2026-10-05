@@ -54,6 +54,7 @@ type LinhaItem = {
   por_pessoa: number;
   rendimento: number;
   preco: number;
+  embalagens: number[] | null;
   selecionado: boolean;
   ordem: number;
 };
@@ -72,7 +73,13 @@ function paraItem(l: LinhaItem): Item {
     porPessoa: Number(l.por_pessoa),
     rendimento: Number(l.rendimento),
     preco: Number(l.preco),
+    embalagens: paraEmbalagens(l.embalagens),
   };
+}
+
+/** Numeric do Postgres chega como string; coluna ausente ou nula vira vazio. */
+function paraEmbalagens(bruto: unknown): number[] {
+  return Array.isArray(bruto) ? bruto.map(Number).filter((n) => Number.isFinite(n) && n > 0) : [];
 }
 
 type LinhaServico = {
@@ -248,6 +255,7 @@ export const repositorioSupabase: Repositorio = {
           por_pessoa: i.porPessoa,
           rendimento: i.rendimento,
           preco: i.preco,
+          embalagens: i.embalagens ?? [],
           selecionado: o.selecionados.includes(i.id),
           ordem,
         })),
@@ -320,6 +328,7 @@ export const repositorioSupabase: Repositorio = {
       porPessoa: Number(l.por_pessoa),
       rendimento: Number(l.rendimento),
       preco: Number(l.preco),
+      embalagens: paraEmbalagens(l.embalagens),
     }));
   },
 
@@ -334,6 +343,7 @@ export const repositorioSupabase: Repositorio = {
         por_pessoa: item.porPessoa,
         rendimento: item.rendimento,
         preco: item.preco,
+        embalagens: item.embalagens ?? [],
       })
       .eq('id', item.id);
     if (error) throw error;
@@ -350,6 +360,7 @@ export const repositorioSupabase: Repositorio = {
         por_pessoa: item.porPessoa,
         rendimento: item.rendimento,
         preco: item.preco,
+        embalagens: item.embalagens ?? [],
         ordem: 999,
       })
       .select()

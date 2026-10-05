@@ -126,7 +126,7 @@ export function textoDaListaDeCompras(orcamento: Orcamento, resultado: Resultado
   */
   const somados = new Map<
     string,
-    { nome: string; unidade: Item['unidade']; categoria: Item['categoria']; comprar: number; preparos: Set<string> }
+    { nome: string; unidade: Item['unidade']; categoria: Item['categoria']; comprar: number; embalagens: number[]; preparos: Set<string> }
   >();
 
   for (const l of resultado.linhas) {
@@ -142,13 +142,14 @@ export function textoDaListaDeCompras(orcamento: Orcamento, resultado: Resultado
       unidade: l.item.unidade,
       categoria: l.item.categoria,
       comprar: l.comprar,
+      embalagens: l.item.embalagens ?? [],
       preparos: new Set(l.item.grupo ? [l.item.grupo] : []),
     });
   }
 
   // Agrupado por categoria, que e mais ou menos a ordem em que se anda no
   // mercado: acougue, hortifruti, mercearia.
-  type Somado = { nome: string; unidade: Item['unidade']; categoria: Item['categoria']; comprar: number; preparos: Set<string> };
+  type Somado = { nome: string; unidade: Item['unidade']; categoria: Item['categoria']; comprar: number; embalagens: number[]; preparos: Set<string> };
   const porCategoria = new Map<string, Somado[]>();
   for (const item of somados.values()) {
     const chave = ROTULO_CATEGORIA[item.categoria];
@@ -160,7 +161,7 @@ export function textoDaListaDeCompras(orcamento: Orcamento, resultado: Resultado
     linhas.push(`*${categoria.toUpperCase()}*`);
     for (const item of [...itens].sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))) {
       const origem = item.preparos.size > 1 ? `  (${[...item.preparos].join(', ')})` : '';
-      linhas.push(`• ${item.nome}: ${quantidade(item.comprar, item.unidade, item.nome)}${origem}`);
+      linhas.push(`• ${item.nome}: ${quantidade(item.comprar, item.unidade, item.embalagens)}${origem}`);
     }
     linhas.push('');
   }

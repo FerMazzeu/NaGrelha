@@ -1,5 +1,5 @@
 import type { Unidade } from './dominio/tipos';
-import { barrisDeChopp, descreverBarris, ehChopp } from './dominio/unidade';
+import { descreverCompra, embalagensPara, naUnidadeDoPreco } from './dominio/unidade';
 
 const dinheiro = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' });
 const numero = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
@@ -17,12 +17,15 @@ export function peso(gramas: number) {
   return `${numeroCheio.format(gramas)} g`;
 }
 
-/** O chopp ainda diz em que barris vem: "80 L (1 barril de 50 L + 1 de 30 L)". */
-export function quantidade(valor: number, unidade: Unidade, nome = '') {
-  if (unidade === 'kg') return peso(valor);
-  if (unidade === 'un') return `${numeroCheio.format(valor)} un`;
-  const litros = `${numero.format(valor)} L`;
-  return ehChopp(nome) && valor > 0 ? `${litros} (${descreverBarris(barrisDeChopp(valor))})` : litros;
+/**
+ * Quanto comprar, e em que embalagens quando o item tem:
+ * "80 L (1 de 50 L + 1 de 30 L)".
+ */
+export function quantidade(valor: number, unidade: Unidade, embalagens: number[] = []) {
+  const base =
+    unidade === 'kg' ? peso(valor) : unidade === 'un' ? `${numeroCheio.format(valor)} un` : `${numero.format(valor)} L`;
+  const compra = embalagensPara(naUnidadeDoPreco(unidade, valor), embalagens);
+  return compra.length ? `${base} (${descreverCompra(compra, unidade)})` : base;
 }
 
 export const inteiro = (v: number) => numeroCheio.format(Number.isFinite(v) ? v : 0);

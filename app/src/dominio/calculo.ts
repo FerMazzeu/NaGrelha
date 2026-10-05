@@ -1,5 +1,5 @@
 import type { Apetite, FaixaDeCache, Item, Orcamento, Resultado, Servico, TipoDeEvento, Unidade } from './tipos';
-import { barrisDeChopp, custoDe, ehChopp } from './unidade';
+import { custoDe, daUnidadeDoPreco, embalagensPara, naUnidadeDoPreco, totalDaCompra } from './unidade';
 
 const FATOR_APETITE: Record<Apetite, number> = {
   leve: 0.85,
@@ -37,11 +37,14 @@ export function totalDeConvidados(orcamento: Pick<Orcamento, 'adultos' | 'faixas
  * Comprar 12,437 kg de picanha não existe. Para kg o degrau é 100 g, para
  * unidade é 1. Para cima sempre: faltar carne na festa é um problema de outra
  * ordem de grandeza do que sobrar duzentos gramas.
+ *
+ * Item com embalagem cadastrada compra embalagem inteira: precisar de 70 L
+ * de chopp em barril de 30 e 50 é comprar 80.
  */
-export function arredondarCompra(quantidade: number, unidade: Unidade, nome = '') {
+export function arredondarCompra(quantidade: number, unidade: Unidade, embalagens: number[] = []) {
   if (quantidade <= 0) return 0;
-  // Chopp vem em barril: precisar de 70 L é comprar 80, um de 50 e um de 30.
-  if (unidade === 'l' && ehChopp(nome)) return barrisDeChopp(quantidade).reduce((s, b) => s + b, 0);
+  const compra = embalagensPara(naUnidadeDoPreco(unidade, quantidade), embalagens);
+  if (compra.length) return daUnidadeDoPreco(unidade, totalDaCompra(compra));
   const degrau = unidade === 'kg' ? 100 : 1;
   return Math.ceil(quantidade / degrau) * degrau;
 }
@@ -104,7 +107,7 @@ export function calcular(orcamento: Orcamento): Resultado {
     // O aproveitamento é o que separa peso no prato de peso na nota fiscal.
     const rendimento = item.rendimento > 0 ? item.rendimento : 1;
     const bruto = servido / rendimento;
-    const comprar = arredondarCompra(bruto, item.unidade, item.nome);
+    const comprar = arredondarCompra(bruto, item.unidade, item.embalagens);
     const custo = custoDe(item.unidade, comprar, item.preco);
     return { item, servido, comprar, custo };
   });
