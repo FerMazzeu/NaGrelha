@@ -62,7 +62,7 @@ const linha = (id: string) => ({
   adultos: 30,
   criancas: [],
   observacoes: '',
-  itens: [],
+  itens: ['pic'],
   criado_em: '2026-10-04T12:00:00Z',
 });
 
@@ -149,6 +149,14 @@ describe('pedido do link vira rascunho', () => {
     erroAoListar = { message: 'relation "public.pedidos" does not exist' };
 
     await expect(converterPedidosPendentes(deps())).resolves.toEqual([]);
+  });
+
+  it('pedido sem prato nenhum não vira rascunho', async () => {
+    pendentes = [{ ...linha('vazio'), itens: [] }];
+    const salvar = vi.fn(async () => {});
+
+    expect(await converterPedidosPendentes(deps(salvar))).toEqual([]);
+    expect(salvar).not.toHaveBeenCalled();
   });
 
   it('pedido já convertido nem é buscado', async () => {

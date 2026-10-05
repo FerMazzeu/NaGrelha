@@ -97,6 +97,18 @@ describe('cardápio do cliente', () => {
   it('o nome em caixa alta da planilha vira nome de cardápio', () => {
     expect(nomeDePrato('PÃO DE ALHO')).toBe('Pão de alho');
     expect(nomeDePrato('Coração de frango')).toBe('Coração de frango');
+    // Cadastrado minúsculo no catálogo de verdade.
+    expect(nomeDePrato('salame')).toBe('Salame');
+  });
+
+  it('"Extra" e "Outros" são gaveta do catálogo, não prato', () => {
+    const secoes = montarCardapio([
+      pub('ger', 'Geleia', 'Geleias artesanais', 'extra'),
+      pub('x1', 'Gelo', 'Extra', 'extra'),
+      pub('x2', 'Guardanapo', 'OUTROS', 'extra'),
+    ]);
+
+    expect(secoes.flatMap((s) => s.pratos.map((p) => p.nome))).toEqual(['Geleias artesanais']);
   });
 });
 

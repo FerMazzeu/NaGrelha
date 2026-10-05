@@ -65,15 +65,20 @@ const PREPARO_DE_ESCOLHA = /\bfrios\b/i;
  * Louça e limpeza já não saem do banco. Estes nomes cobrem o que costuma vir
  * cadastrado como "extra": carvão e acendedor não são prato, e "Fogo" num
  * cardápio de festa parece piada.
+ *
+ * "Extra" e "Outros" são as gavetas de sobra do catálogo do Alan. No primeiro
+ * teste com o banco de verdade elas apareceram como se fossem pratos, com uma
+ * caixinha "Outros" para o cliente marcar.
  */
-const NAO_E_PRATO = /^(fogo|lou[cç]as?|produtos? de limpeza|limpeza|descart[aá]veis|estrutura|equipe)$/i;
+const NAO_E_PRATO = /^(fogo|lou[cç]as?|produtos? de limpeza|limpeza|descart[aá]veis|estrutura|equipe|extras?|outros)$/i;
 
-/** "PÃO DE ALHO" → "Pão de alho". Nome já em caixa mista fica como está. */
+/** "PÃO DE ALHO" → "Pão de alho", "salame" → "Salame". "Pão de Queijo" fica. */
 export function nomeDePrato(texto: string) {
   const limpo = texto.trim();
-  if (limpo !== limpo.toUpperCase()) return limpo;
-  const minusculo = limpo.toLocaleLowerCase('pt-BR');
-  return minusculo.charAt(0).toLocaleUpperCase('pt-BR') + minusculo.slice(1);
+  // Caixa mista fica como está, só garante a primeira maiúscula: no catálogo
+  // tem "salame" cadastrado assim, e ele saía minúsculo no meio dos outros.
+  const base = limpo === limpo.toUpperCase() ? limpo.toLocaleLowerCase('pt-BR') : limpo;
+  return base.charAt(0).toLocaleUpperCase('pt-BR') + base.slice(1);
 }
 
 /** Onde o prato inteiro cai, pela categoria que mais aparece nele. */

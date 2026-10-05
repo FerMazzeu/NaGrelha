@@ -88,7 +88,9 @@ set search_path to 'public'
 as $$
   select f.id, f.nome, f.idade_min, f.idade_max
   from public.faixas_etarias f
-  order by f.idade_min;
+  -- Faixa desativada no app não pode aparecer para o cliente.
+  where f.ativo
+  order by f.ordem, f.idade_min;
 $$;
 
 revoke all on function public.cardapio_publico() from public;
@@ -132,7 +134,10 @@ create table if not exists public.pedidos (
   -- Limites que valem como anti-besteira num endereço público.
   constraint pedido_tem_nome check (length(btrim(cliente)) between 2 and 120),
   constraint pedido_tem_contato check (length(btrim(contato)) between 8 and 120),
-  constraint pedido_tem_item check (array_length(itens, 1) between 1 and 300),
+  -- `cardinality`, e não `array_length`: o tamanho de lista vazia por
+  -- array_length é NULL, e CHECK com NULL passa. Foi assim que um pedido sem
+  -- prato nenhum entrou no primeiro teste depois da migração.
+  constraint pedido_tem_item check (cardinality(itens) between 1 and 300),
   constraint pedido_tipo_valido check (tipo_evento in ('aniversario', 'casamento')),
   constraint pedido_hora_curta check (length(hora) <= 10),
   constraint pedido_local_curto check (length(local) <= 200),

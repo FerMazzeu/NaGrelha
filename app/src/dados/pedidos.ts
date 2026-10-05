@@ -147,6 +147,10 @@ export async function converterPedidosPendentes(deps: {
 
   for (const linha of (data ?? []) as Record<string, unknown>[]) {
     const pedido = paraPedido(linha);
+    // Pedido sem prato não é pedido. O banco deveria recusar, e por um tempo
+    // não recusou (ver a regra `pedido_tem_item` na migração 006): sem esta
+    // linha, um teste vazio virava rascunho na lista do Alan.
+    if (!pedido.itens.length) continue;
     try {
       const { data: reservado } = await supabase
         .from('pedidos')
