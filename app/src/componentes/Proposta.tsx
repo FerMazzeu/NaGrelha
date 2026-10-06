@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, Fragment } from 'react';
 import { montarCardapio } from '../dominio/cardapio-do-cliente';
 import { CONTATO_DUVIDAS, condicoesDoEvento } from '../dominio/condicoes';
 import type { Orcamento, Resultado } from '../dominio/tipos';
@@ -188,9 +188,23 @@ export default function Proposta({
                     faixa etária.
                   */}
                   <ul>
-                    {secao.pratos.map((p) => (
-                      <li key={p.chave}>{p.nome}</li>
-                    ))}
+                    {secao.pratos.map((p, i) => {
+                      /*
+                        No link o subtítulo é um convite ("Escolha seu molho");
+                        aqui o cliente já escolheu, e o mesmo texto soaria como
+                        pergunta. Na proposta ele vira o nome da parte: "Molho".
+                      */
+                      const abreParte = !!p.subtitulo && secao.pratos[i - 1]?.subtitulo !== p.subtitulo;
+                      const parte = (p.subtitulo ?? '').replace(/^escolha (seu|sua|seus|suas) /i, '');
+                      return (
+                        <Fragment key={p.chave}>
+                          {abreParte && (
+                            <li className="proposta-parte">{parte.charAt(0).toUpperCase() + parte.slice(1)}</li>
+                          )}
+                          <li>{p.nome}</li>
+                        </Fragment>
+                      );
+                    })}
                   </ul>
                 </div>
               ))}

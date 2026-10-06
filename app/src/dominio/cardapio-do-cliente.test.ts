@@ -48,7 +48,8 @@ describe('cardápio do cliente', () => {
   it('bacon no carreteiro é tempero, não corte para escolher', () => {
     // Arroz e bacon: 1 carne em 2. Com "pelo menos metade" isso abria item a
     // item e o cliente via "Bacon" sozinho no cardápio.
-    const carreteiro = todos.find((p) => p.nome === 'Arroz carreteiro')!;
+    // Saiu como "Carreteiro" desde que foi para o tópico de finalização.
+    const carreteiro = todos.find((p) => p.nome === 'Carreteiro')!;
 
     expect(carreteiro.ids.sort()).toEqual(['arr', 'bac']);
     expect(todos.some((p) => p.nome === 'Bacon')).toBe(false);
@@ -106,6 +107,79 @@ describe('cardápio do cliente', () => {
     const secoes = montarCardapio([pub('a', 'Arroz', 'ARROZ FRIOSO', 'guarnicao'), pub('b', 'Sal', 'ARROZ FRIOSO', 'guarnicao')]);
 
     expect(secoes[0].pratos.map((p) => p.nome)).toEqual(['Arroz frioso']);
+  });
+
+  /*
+    Os preparos com os nomes exatos do banco: é assim que o Alan cadastrou, e
+    é contra isso que os tópicos precisam funcionar.
+  */
+  const DO_BANCO = [
+    pub('pen', 'PENNE', 'MASSA', 'guarnicao'),
+    pub('par', 'QUEIJO PARMESÃO', 'MASSA', 'guarnicao'),
+    pub('m2q', 'Provolone', 'MOLHO DOIS QUEIJO', 'entrada'),
+    pub('sug', 'Tomate', 'MOLHO AO SUGO ARTESANAL', 'extra'),
+    pub('fra', 'Fraldinha', 'MOLHO DE FRALDINHA', 'carne'),
+    pub('fal', 'Alho', 'MOLHO DE FRALDINHA', 'extra'),
+    pub('fce', 'Cebola', 'MOLHO DE FRALDINHA', 'extra'),
+    pub('arr', 'Arroz', 'Arroz carreteiro', 'guarnicao'),
+    pub('mac', 'Macarrão penne', 'Macarrão no disco Finalização', 'guarnicao'),
+    pub('ham', 'Pão de hambúrguer', 'Hamburguer na grelha', 'entrada'),
+    pub('far', 'Farinha', 'Farofa na grelha', 'guarnicao'),
+  ];
+
+  it('massa e molhos ficam juntos em "Massas artesanais", como o Alan pediu', () => {
+    const massas = montarCardapio(DO_BANCO).find((s) => s.titulo === 'Massas artesanais')!;
+
+    expect(massas.pratos.map((p) => p.nome)).toEqual([
+      'Massa penne',
+      'Molho dois queijos',
+      'Molho ao sugo',
+      'Molho de fraldinha',
+    ]);
+  });
+
+  it('os molhos vêm sob "Escolha seu molho", e a massa não', () => {
+    const massas = montarCardapio(DO_BANCO).find((s) => s.titulo === 'Massas artesanais')!;
+
+    expect(massas.pratos.map((p) => p.subtitulo ?? '')).toEqual([
+      '',
+      'Escolha seu molho',
+      'Escolha seu molho',
+      'Escolha seu molho',
+    ]);
+  });
+
+  it('o molho de fraldinha é prato inteiro, e não a fraldinha para escolher', () => {
+    // Tem fraldinha dentro, mas é molho: marcar o molho leva tudo.
+    const molho = montarCardapio(DO_BANCO).flatMap((s) => s.pratos).find((p) => p.nome === 'Molho de fraldinha')!;
+
+    expect(molho.ids.sort()).toEqual(['fal', 'fce', 'fra']);
+  });
+
+  it('"Para finalizar seu evento" com carreteiro, macarrão no disco e hambúrguer', () => {
+    const fim = montarCardapio(DO_BANCO).find((s) => s.titulo === 'Para finalizar seu evento')!;
+
+    expect(fim.pratos.map((p) => p.nome)).toEqual(['Carreteiro', 'Macarrão no disco', 'Hambúrguer artesanal']);
+  });
+
+  it('o que foi para os tópicos sai das seções de antes', () => {
+    const secoes = montarCardapio(DO_BANCO);
+    const nomes = secoes.flatMap((s) => s.pratos.map((p) => p.nome));
+
+    // Cada um aparece uma vez só.
+    expect(nomes.filter((n) => /carreteiro|hamb|massa|molho|macarr/i.test(n)).length).toBe(7);
+    // E a farofa, que não é de tópico nenhum, continua em Acompanhamentos.
+    expect(secoes.find((s) => s.titulo === 'Acompanhamentos')?.pratos.map((p) => p.nome)).toEqual(['Farofa na grelha']);
+  });
+
+  it('os tópicos vêm depois dos acompanhamentos, massas primeiro', () => {
+    const titulos = montarCardapio(DO_BANCO).map((s) => s.titulo);
+
+    expect(titulos.slice(titulos.indexOf('Acompanhamentos'))).toEqual([
+      'Acompanhamentos',
+      'Massas artesanais',
+      'Para finalizar seu evento',
+    ]);
   });
 
   it('o nome em caixa alta da planilha vira nome de cardápio', () => {

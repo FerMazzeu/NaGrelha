@@ -26,6 +26,11 @@ export type Prato = {
   nome: string;
   /** Os ids do catálogo que entram quando o prato é marcado. */
   ids: string[];
+  /**
+   * Divide uma seção em partes, como "Escolha seu molho" dentro das massas.
+   * A tela mostra o subtítulo antes do primeiro prato que o traz.
+   */
+  subtitulo?: string;
 };
 
 export type SecaoDoCardapio = {
@@ -79,6 +84,52 @@ const PREPARO_DE_ESCOLHA = /\b(frios|bebidas?)\b/i;
  */
 const NAO_E_PRATO = /^(fogo|lou[cç]as?|produtos? de limpeza|limpeza|descart[aá]veis|estrutura|equipe|extras?|outros)$/i;
 
+/**
+ * Tópicos que o Alan montou à mão, por cima da regra das categorias.
+ *
+ * Pela categoria, a massa caía em Acompanhamentos, o molho dois queijos em
+ * Entradas e os outros dois molhos em Extras, e o hambúrguer em Entradas.
+ * Nas palavras dele, parecia "que a gente analisou certinho aqui e tá
+ * desorganizado". Massa artesanal é diferencial dele, e merece um tópico.
+ *
+ * O nome que o cliente lê fica aqui, e não no cadastro, de propósito: o nome
+ * do preparo no catálogo é o que casa com a planilha do Alan na importação.
+ * Renomear "Hamburguer na grelha" lá para "Hambúrguer artesanal" faria a
+ * próxima planilha criar o hambúrguer de novo, duplicado.
+ *
+ * A ordem dos preparos aqui é a ordem na tela.
+ */
+const TOPICOS: {
+  titulo: string;
+  dica: string;
+  /** Depois de qual seção da regra das categorias o tópico aparece. */
+  depoisDe: Categoria;
+  preparos: { padrao: RegExp; nome?: string; subtitulo?: string }[];
+}[] = [
+  {
+    titulo: 'Massas artesanais',
+    dica: 'Escolha a massa e o molho.',
+    depoisDe: 'guarnicao',
+    preparos: [
+      { padrao: /^massa$/i, nome: 'Massa penne' },
+      { padrao: /^massa\b/i },
+      { padrao: /^molho dois queijos?$/i, nome: 'Molho dois queijos', subtitulo: 'Escolha seu molho' },
+      { padrao: /^molho ao sugo/i, nome: 'Molho ao sugo', subtitulo: 'Escolha seu molho' },
+      { padrao: /^molho\b/i, subtitulo: 'Escolha seu molho' },
+    ],
+  },
+  {
+    titulo: 'Para finalizar seu evento',
+    dica: 'Servidos no fim da festa.',
+    depoisDe: 'guarnicao',
+    preparos: [
+      { padrao: /carreteiro/i, nome: 'Carreteiro' },
+      { padrao: /^macarr[aã]o no disco/i, nome: 'Macarrão no disco' },
+      { padrao: /^hamb[uú]rguer/i, nome: 'Hambúrguer artesanal' },
+    ],
+  },
+];
+
 /** "PÃO DE ALHO" → "Pão de alho", "salame" → "Salame". "Pão de Queijo" fica. */
 export function nomeDePrato(texto: string) {
   const limpo = texto.trim();
@@ -117,9 +168,27 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
 
   const umAUm: { categoria: Categoria; secao: SecaoDoCardapio }[] = [];
   const inteiros = new Map<Categoria, Prato[]>();
+  // Por tópico, e dentro dele pela posição da regra que pegou o preparo.
+  const doTopico = TOPICOS.map(() => [] as { posicao: number; prato: Prato }[]);
 
   for (const [preparo, doPreparo] of porPreparo) {
     if (NAO_E_PRATO.test(preparo.trim())) continue;
+
+    const t = TOPICOS.findIndex((x) => x.preparos.some((r) => r.padrao.test(preparo.trim())));
+    if (t >= 0) {
+      const posicao = TOPICOS[t].preparos.findIndex((r) => r.padrao.test(preparo.trim()));
+      const regra = TOPICOS[t].preparos[posicao];
+      doTopico[t].push({
+        posicao,
+        prato: {
+          chave: `p:${preparo}`,
+          nome: regra.nome ?? nomeDePrato(preparo),
+          ids: doPreparo.map((i) => i.id),
+          ...(regra.subtitulo ? { subtitulo: regra.subtitulo } : {}),
+        },
+      });
+      continue;
+    }
 
     const tudoEscolha = PREPARO_DE_ESCOLHA.test(preparo);
     const deEscolha = tudoEscolha ? doPreparo : doPreparo.filter((i) => ESCOLHA_UM_A_UM.includes(i.categoria));
@@ -161,6 +230,14 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
         pratos,
       });
     }
+    TOPICOS.forEach((topico, t) => {
+      if (topico.depoisDe !== categoria || !doTopico[t].length) return;
+      secoes.push({
+        titulo: topico.titulo,
+        dica: topico.dica,
+        pratos: doTopico[t].sort((a, b) => a.posicao - b.posicao).map((x) => x.prato),
+      });
+    });
   }
   return secoes;
 }

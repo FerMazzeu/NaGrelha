@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from '../componentes/Campos';
 import { lerCardapioPublico, lerFaixasPublicas, enviarPedido, type FaixaPublica } from '../dados/pedidos';
 import { montarCardapio, type SecaoDoCardapio } from '../dominio/cardapio-do-cliente';
@@ -262,11 +262,17 @@ export default function PedidoDoCliente() {
                 </span>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {secao.pratos.map((p) => {
+                {secao.pratos.map((p, i) => {
                   const marcado = marcados.has(p.chave);
+                  // Subtítulo entra antes do primeiro prato que o traz, ocupando
+                  // a linha inteira da grade: "Escolha seu molho" nas massas.
+                  const abreParte = !!p.subtitulo && secao.pratos[i - 1]?.subtitulo !== p.subtitulo;
                   return (
+                    <Fragment key={p.chave}>
+                    {abreParte && (
+                      <p className="rotulo col-span-full mt-2 text-dourado/80">{p.subtitulo}</p>
+                    )}
                     <label
-                      key={p.chave}
                       className={`cartao flex cursor-pointer items-center gap-3 p-3.5 transition-colors ${
                         marcado ? 'border-dourado/70 bg-dourado/10' : 'hover:border-dourado/30'
                       }`}
@@ -279,6 +285,7 @@ export default function PedidoDoCliente() {
                       />
                       <span className={`min-w-0 flex-1 ${marcado ? 'font-semibold text-creme' : ''}`}>{p.nome}</span>
                     </label>
+                    </Fragment>
                   );
                 })}
               </div>

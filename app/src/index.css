@@ -383,6 +383,18 @@
   columns: 2;
 }
 
+/* "Molho" dentro das massas: a parte, sem o marcador de lista. */
+.proposta-grupo li.proposta-parte {
+  margin-top: 0.35rem;
+  margin-left: -1.1rem;
+  list-style: none;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #8a7866;
+}
+
 .proposta-tabela {
   margin-top: 0.85rem;
   width: 100%;
