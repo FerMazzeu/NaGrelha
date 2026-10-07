@@ -1,6 +1,7 @@
 import { agruparPorPreparo, ROTULO_CATEGORIA } from './dominio/catalogo';
 import { ROTULO_PAPEL, type Item, type Orcamento, type Resultado } from './dominio/tipos';
 import { dataCurta } from './formato';
+import { nomeDeArquivo } from './pdf-da-proposta';
 import { naUnidadeDoPreco, rotuloUnidade } from './dominio/unidade';
 import { condicoesDoEvento } from './dominio/condicoes';
 
@@ -16,7 +17,8 @@ import { condicoesDoEvento } from './dominio/condicoes';
  */
 export async function exportarOrcamento(orcamento: Orcamento, resultado: Resultado) {
   const buffer = await montarPlanilha(orcamento, resultado);
-  const nome = `Na Grelha - ${orcamento.cliente || 'orcamento'}${orcamento.data ? ` - ${orcamento.data}` : ''}.xlsx`;
+  // Sem acento no nome do arquivo, pelo mesmo motivo do PDF ("OrÃ§amento").
+  const nome = `Na Grelha - ${nomeDeArquivo(orcamento.cliente) || 'orcamento'}${orcamento.data ? ` - ${orcamento.data}` : ''}.xlsx`;
   baixar(new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }), nome);
 }
 

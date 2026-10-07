@@ -4,6 +4,7 @@ import {
   arredondarPreco,
   calcular,
   faltaFaixa,
+  limiteDaTabela,
   pessoasEquivalentes,
   redistribuirCarnes,
   totalDeConvidados,
@@ -203,6 +204,36 @@ describe('cachê por tipo de evento', () => {
     };
     expect(faltaFaixa(fixo, 1000, 'casamento')).toBe(false);
     expect(valorSugerido(fixo, 1000, 'casamento')).toBe(200);
+  });
+
+  it('sabe até quantos convidados a tabela de cada tipo vai', () => {
+    // É o número que a tela mostra quando a festa passa da tabela.
+    const servico = {
+      id: 's',
+      nome: 'Churrasqueiro',
+      papel: 'equipe' as const,
+      valorPadrao: 600,
+      usaFaixa: true,
+      percentual: 0,
+      faixas: duasTabelas,
+    };
+
+    expect(limiteDaTabela(servico, 'aniversario')).toBe(300);
+    expect(limiteDaTabela(servico, 'casamento')).toBe(120);
+  });
+
+  it('tabela com faixa sem teto não tem limite', () => {
+    const semTeto = {
+      id: 's',
+      nome: 'Churrasqueiro',
+      papel: 'equipe' as const,
+      valorPadrao: 600,
+      usaFaixa: true,
+      percentual: 0,
+      faixas: [{ min: 81, max: null, valor: 1000, tipo: null }],
+    };
+
+    expect(limiteDaTabela(semTeto, 'aniversario')).toBeNull();
   });
 });
 

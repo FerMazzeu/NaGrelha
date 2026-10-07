@@ -70,9 +70,10 @@ describe('cardápio do cliente', () => {
     expect(todos.some((p) => /carv[aã]o|fogo|copo/i.test(p.nome))).toBe(false);
   });
 
-  it('a carne vem primeiro, depois entradas e acompanhamentos', () => {
-    expect(titulos[0]).toBe('Churrasco');
-    expect(titulos.indexOf('Entradas')).toBeLessThan(titulos.indexOf('Acompanhamentos'));
+  it('segue a sequência da planilha do Alan: entradas, guarnições, carnes', () => {
+    // "Poderia colocar nessa sequência", com a planilha dele em anexo.
+    // O carreteiro deste catálogo vai para o tópico de finalização.
+    expect(titulos).toEqual(['Entradas', 'Guarnições', 'Churrasco', 'Para finalizar seu evento']);
   });
 
   it('frios abrem item a item, mesmo cadastrados como entrada', () => {
@@ -98,7 +99,8 @@ describe('cardápio do cliente', () => {
     ]);
 
     expect(bebidas.titulo).toBe('Bebidas');
-    expect(bebidas.pratos.map((p) => p.nome)).toEqual(['Refrigerantes 2lts', 'Chopp', 'Agua com gás', 'Agua sem gás']);
+    // Já com a grafia corrigida para o cliente (ver CORRECOES).
+    expect(bebidas.pratos.map((p) => p.nome)).toEqual(['Refrigerante 2 L', 'Chopp', 'Água com gás', 'Água sem gás']);
     expect(bebidas.pratos.find((p) => p.chave === 'ref')!.ids).toEqual(['ref']);
   });
 
@@ -127,8 +129,8 @@ describe('cardápio do cliente', () => {
     pub('far', 'Farinha', 'Farofa na grelha', 'guarnicao'),
   ];
 
-  it('massa e molhos ficam juntos em "Massas artesanais", como o Alan pediu', () => {
-    const massas = montarCardapio(DO_BANCO).find((s) => s.titulo === 'Massas artesanais')!;
+  it('massa e molhos ficam juntos no "Cardápio especial", como na planilha', () => {
+    const massas = montarCardapio(DO_BANCO).find((s) => s.titulo === 'Cardápio especial')!;
 
     expect(massas.pratos.map((p) => p.nome)).toEqual([
       'Massa penne',
@@ -138,11 +140,12 @@ describe('cardápio do cliente', () => {
     ]);
   });
 
-  it('os molhos vêm sob "Escolha seu molho", e a massa não', () => {
-    const massas = montarCardapio(DO_BANCO).find((s) => s.titulo === 'Massas artesanais')!;
+  it('a massa vem sob "Massas artesanais" e os molhos sob "Escolha seu molho"', () => {
+    // "Massas artesanais" como subtítulo: foi a palavra que o Alan usou no áudio.
+    const massas = montarCardapio(DO_BANCO).find((s) => s.titulo === 'Cardápio especial')!;
 
     expect(massas.pratos.map((p) => p.subtitulo ?? '')).toEqual([
-      '',
+      'Massas artesanais',
       'Escolha seu molho',
       'Escolha seu molho',
       'Escolha seu molho',
@@ -168,18 +171,95 @@ describe('cardápio do cliente', () => {
 
     // Cada um aparece uma vez só.
     expect(nomes.filter((n) => /carreteiro|hamb|massa|molho|macarr/i.test(n)).length).toBe(7);
-    // E a farofa, que não é de tópico nenhum, continua em Acompanhamentos.
-    expect(secoes.find((s) => s.titulo === 'Acompanhamentos')?.pratos.map((p) => p.nome)).toEqual(['Farofa na grelha']);
+    // E a farofa, que não é de tópico nenhum, continua em Guarnições.
+    expect(secoes.find((s) => s.titulo === 'Guarnições')?.pratos.map((p) => p.nome)).toEqual(['Farofa na grelha']);
   });
 
-  it('os tópicos vêm depois dos acompanhamentos, massas primeiro', () => {
-    const titulos = montarCardapio(DO_BANCO).map((s) => s.titulo);
+  it('a sequência inteira da planilha, de entradas até bebidas', () => {
+    const titulos = montarCardapio([
+      ...DO_BANCO,
+      pub('pic', 'Picanha', 'Carnes para churrasco', 'carne'),
+      pub('pao', 'Pão francês', 'Pão de alho', 'entrada'),
+      pub('frs', 'Salame', 'FRIOS  ENTRADA', 'entrada'),
+      pub('leg', 'Abobrinha', 'LEGUMES GRELHADO', 'guarnicao'),
+      pub('doc', 'Bolo', 'SOBREMESA', 'extra'),
+      pub('chp', 'Chopp', 'BEBIDAS', 'bebida'),
+    ]).map((s) => s.titulo);
 
-    expect(titulos.slice(titulos.indexOf('Acompanhamentos'))).toEqual([
-      'Acompanhamentos',
-      'Massas artesanais',
+    expect(titulos).toEqual([
+      'Frios',
+      'Entradas',
+      'Guarnições',
+      'Carnes para churrasco',
+      'Cardápio especial',
       'Para finalizar seu evento',
+      'Sobremesa',
+      'Bebidas',
     ]);
+  });
+
+  it('dentro das guarnições, a ordem é a da planilha, e não a do cadastro', () => {
+    // No cadastro a maionese vem antes do tutu; na planilha do Alan, depois.
+    const guarnicoes = montarCardapio([
+      pub('s', 'Batata palha', 'SALPICÃO', 'guarnicao'),
+      pub('m', 'Batata', 'Maionese', 'guarnicao'),
+      pub('t', 'Feijão', 'TUTU A MINEIRA', 'guarnicao'),
+      pub('f', 'Farinha', 'Farofa na grelha', 'guarnicao'),
+      pub('x', 'Cuscuz', 'Cuscuz paulista', 'guarnicao'),
+      pub('v', 'Tomate', 'Vinagrete defumado', 'guarnicao'),
+      pub('a', 'Arroz branco', 'Arroz', 'guarnicao'),
+    ])[0].pratos.map((p) => p.nome);
+
+    // O cuscuz não está na planilha: vai para o fim.
+    expect(guarnicoes).toEqual([
+      'Arroz',
+      'Vinagrete defumado',
+      'Farofa na grelha',
+      'Tutu à mineira',
+      'Maionese',
+      'Salpicão',
+      'Cuscuz paulista',
+    ]);
+  });
+
+  it('legumes grelhados entram no cardápio especial quando forem cadastrados', () => {
+    const especial = montarCardapio([...DO_BANCO, pub('leg', 'Abobrinha', 'LEGUMES GRELHADO', 'guarnicao')]).find(
+      (s) => s.titulo === 'Cardápio especial',
+    )!;
+
+    expect(especial.pratos.at(-1)).toMatchObject({ nome: 'Legumes grelhados', subtitulo: 'Grelhados' });
+  });
+
+  it('"Suco lt" vira só "Suco": o lt era litro, e o Alan pediu para tirar', () => {
+    const [bebidas] = montarCardapio([pub('s', 'SUCO LT', 'BEBIDAS', 'bebida')]);
+
+    expect(bebidas.pratos[0].nome).toBe('Suco');
+  });
+
+  it('o cliente lê a grafia certa, sem mudar o cadastro', () => {
+    const nomes = montarCardapio([
+      pub('a', 'Buratta', 'FRIOS  ENTRADA', 'entrada'),
+      pub('b', 'NUTHELA', 'FRIOS  ENTRADA', 'entrada'),
+      pub('c', 'kibe cru/pão sirio', 'FRIOS  ENTRADA', 'entrada'),
+      pub('d', 'Presunto parma', 'FRIOS  ENTRADA', 'entrada'),
+      pub('e', 'Feijão', 'TUTU A MINEIRA', 'guarnicao'),
+    ]).map((s) => `${s.titulo}: ${s.pratos.map((p) => p.nome).join(', ')}`);
+
+    expect(nomes).toEqual([
+      'Frios: Burrata, Nutella, Quibe cru com pão sírio, Presunto de Parma',
+      'Guarnições: Tutu à mineira',
+    ]);
+  });
+
+  it('corte com nome estrangeiro fica como é chamado no Brasil', () => {
+    const cortes = montarCardapio([
+      pub('s', 'Shoulder', 'Carnes para churrasco', 'carne'),
+      pub('a', 'Ancho', 'Carnes para churrasco', 'carne'),
+      pub('c', 'Chorizo', 'Carnes para churrasco', 'carne'),
+      pub('p', 'Panceta', 'Carnes para churrasco', 'carne'),
+    ])[0].pratos.map((p) => p.nome);
+
+    expect(cortes).toEqual(['Shoulder', 'Ancho', 'Chorizo', 'Panceta']);
   });
 
   it('o nome em caixa alta da planilha vira nome de cardápio', () => {

@@ -97,42 +97,130 @@ const NAO_E_PRATO = /^(fogo|lou[cç]as?|produtos? de limpeza|limpeza|descart[aá
  * Renomear "Hamburguer na grelha" lá para "Hambúrguer artesanal" faria a
  * próxima planilha criar o hambúrguer de novo, duplicado.
  *
- * A ordem dos preparos aqui é a ordem na tela.
+ * A ordem dos tópicos e dos preparos aqui é a ordem na tela.
+ *
+ * "Cardápio especial" é o nome do bloco na planilha do Alan; "Massas
+ * artesanais" entra como SUBTÍTULO dentro dele, que foi a palavra que ele
+ * usou no áudio ("colocar um subtítulo de massas artesanais").
  */
 const TOPICOS: {
   titulo: string;
   dica: string;
-  /** Depois de qual seção da regra das categorias o tópico aparece. */
-  depoisDe: Categoria;
   preparos: { padrao: RegExp; nome?: string; subtitulo?: string }[];
 }[] = [
   {
-    titulo: 'Massas artesanais',
+    titulo: 'Cardápio especial',
     dica: 'Escolha a massa e o molho.',
-    depoisDe: 'guarnicao',
     preparos: [
-      { padrao: /^massa$/i, nome: 'Massa penne' },
-      { padrao: /^massa\b/i },
+      { padrao: /^massa$/i, nome: 'Massa penne', subtitulo: 'Massas artesanais' },
+      { padrao: /^massa\b/i, subtitulo: 'Massas artesanais' },
       { padrao: /^molho dois queijos?$/i, nome: 'Molho dois queijos', subtitulo: 'Escolha seu molho' },
       { padrao: /^molho ao sugo/i, nome: 'Molho ao sugo', subtitulo: 'Escolha seu molho' },
       { padrao: /^molho\b/i, subtitulo: 'Escolha seu molho' },
+      // Está na planilha dele e ainda não no catálogo: entra aqui quando entrar.
+      { padrao: /^legumes/i, nome: 'Legumes grelhados', subtitulo: 'Grelhados' },
     ],
   },
   {
     titulo: 'Para finalizar seu evento',
     dica: 'Servidos no fim da festa.',
-    depoisDe: 'guarnicao',
     preparos: [
       { padrao: /carreteiro/i, nome: 'Carreteiro' },
       { padrao: /^macarr[aã]o no disco/i, nome: 'Macarrão no disco' },
       { padrao: /^hamb[uú]rguer/i, nome: 'Hambúrguer artesanal' },
     ],
   },
+  {
+    // Também da planilha, e também ainda fora do catálogo.
+    titulo: 'Sobremesa',
+    dica: 'Para fechar a festa.',
+    preparos: [{ padrao: /sobremesa|confeitaria/i }],
+  },
 ];
+
+/*
+  A ordem dos pratos dentro de cada seção, como na planilha do Alan.
+
+  Sem isto a ordem era a do cadastro, e o tutu caía depois da maionese. O que
+  não está aqui vem depois, na ordem do catálogo.
+*/
+const ORDEM_DOS_PRATOS = [
+  /^p[aã]o de alho/i,
+  /^chorip/i,
+  /^batata r[uú]stica/i,
+  /^p[aã]o de queijo/i,
+  /^arroz$/i,
+  /^vinagrete/i,
+  /^farofa/i,
+  /^tutu/i,
+  /^maionese/i,
+  /^salpic/i,
+];
+
+const posicaoNaPlanilha = (prato: Prato) => {
+  const preparo = prato.chave.replace(/^p:/, '');
+  const i = ORDEM_DOS_PRATOS.findIndex((r) => r.test(preparo.trim()));
+  return i < 0 ? ORDEM_DOS_PRATOS.length : i;
+};
+
+/*
+  Grafia certa para o cliente, sem mexer no cadastro.
+
+  O nome no catálogo é o que o Alan escreveu na planilha dele, e é por ele que
+  a importação casa um item com o que já existe. Corrigir "Buratta" lá faria a
+  próxima planilha criar a burrata de novo. Então o catálogo fica como está, e
+  o que o cliente lê, no link e no PDF, passa por esta lista.
+
+  Ficam como estão, de propósito: Shoulder (corte do miolo da paleta, que no
+  Brasil se chama assim, em inglês), Ancho e Chorizo (bife ancho e bife de
+  chorizo, nomes argentinos das duas pontas do contrafilé), Panceta, Crostata,
+  Terrine, e as marcas (Doritos, Pringles).
+
+  A chave é o nome sem acento, sem caixa e com espaço normalizado: "AGUA COM
+  GAS", "Agua com gás" e "água  com gás" caem todos na mesma correção.
+*/
+const CORRECOES: Record<string, string> = {
+  'agua com gas': 'Água com gás',
+  'agua sem gas': 'Água sem gás',
+  // "Chopp", e não "chope" do dicionário: é como o Alan quer, e como bar e
+  // marca escrevem. Fica sem entrada aqui; o arrumado normal já dá "Chopp".
+  // "lt" é litro, e o Alan pediu para tirar.
+  'suco lt': 'Suco',
+  'refrigerantes 2lts': 'Refrigerante 2 L',
+  'refrigerantes zero 2lts': 'Refrigerante zero 2 L',
+  buratta: 'Burrata',
+  nuthela: 'Nutella',
+  // "Mussarela" é a mais comum, mas o VOLP registra "muçarela" e "mozarela".
+  mussarela: 'Muçarela',
+  mussarrela: 'Muçarela',
+  'kibe cru/pao sirio': 'Quibe cru com pão sírio',
+  'presunto parma': 'Presunto de Parma',
+  // "À moda mineira": leva crase.
+  'tutu a mineira': 'Tutu à mineira',
+  calabreza: 'Calabresa',
+  // O preparo se chama "FRIOS  ENTRADA" no catálogo, com espaço duplo, e
+  // aparecia assim como título para o cliente.
+  'frios entrada': 'Frios',
+  // Maître, e não "metrê", que é como ele aparecia na proposta.
+  'organizacao (metre)': 'Organização (maître)',
+};
+
+const chaveDeNome = (texto: string) =>
+  texto
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** O nome como o cliente deve ler: corrigido se estiver na lista, arrumado se não. */
+export function nomeParaCliente(texto: string) {
+  return CORRECOES[chaveDeNome(texto)] ?? nomeDePrato(texto);
+}
 
 /** "PÃO DE ALHO" → "Pão de alho", "salame" → "Salame". "Pão de Queijo" fica. */
 export function nomeDePrato(texto: string) {
-  const limpo = texto.trim();
+  const limpo = texto.trim().replace(/\s+/g, ' ');
   // Caixa mista fica como está, só garante a primeira maiúscula: no catálogo
   // tem "salame" cadastrado assim, e ele saía minúsculo no meio dos outros.
   const base = limpo === limpo.toUpperCase() ? limpo.toLocaleLowerCase('pt-BR') : limpo;
@@ -146,11 +234,22 @@ function secaoDoPrato(itens: ItemPublico[]): Categoria {
   return [...conta.entries()].sort((a, b) => b[1] - a[1])[0][0];
 }
 
-const ORDEM_DAS_SECOES: Categoria[] = ['carne', 'entrada', 'guarnicao', 'bebida', 'extra'];
+/*
+  A sequência da planilha do Alan, que ele mandou pedindo "colocar nessa
+  sequência": entradas, guarnições, carnes, cardápio especial, finalizações,
+  sobremesa, bebidas. Os tópicos (cardápio especial em diante) entram no lugar
+  marcado com `'topicos'`.
+
+  Os frios são entrada, e por serem escolhidos item a item viram um bloco
+  próprio, logo antes das outras entradas: na planilha, FRIOS é a primeira
+  linha de ENTRADAS.
+*/
+const ORDEM_DAS_SECOES: (Categoria | 'topicos')[] = ['entrada', 'guarnicao', 'carne', 'topicos', 'bebida', 'extra'];
 
 const TITULO_DA_SECAO: Partial<Record<Categoria, string>> = {
   entrada: 'Entradas',
-  guarnicao: 'Acompanhamentos',
+  // "Guarnições", como na planilha dele.
+  guarnicao: 'Guarnições',
   bebida: 'Bebidas',
   extra: 'Extras',
 };
@@ -182,7 +281,7 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
         posicao,
         prato: {
           chave: `p:${preparo}`,
-          nome: regra.nome ?? nomeDePrato(preparo),
+          nome: regra.nome ?? nomeParaCliente(preparo),
           ids: doPreparo.map((i) => i.id),
           ...(regra.subtitulo ? { subtitulo: regra.subtitulo } : {}),
         },
@@ -202,9 +301,9 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
       umAUm.push({
         categoria: secaoDoPrato(deEscolha),
         secao: {
-          titulo: nomeDePrato(preparo),
+          titulo: nomeParaCliente(preparo),
           dica: 'Marque cada um que você quer.',
-          pratos: deEscolha.map((i) => ({ chave: i.id, nome: nomeDePrato(i.nome), ids: [i.id, ...junto] })),
+          pratos: deEscolha.map((i) => ({ chave: i.id, nome: nomeParaCliente(i.nome), ids: [i.id, ...junto] })),
         },
       });
       continue;
@@ -214,30 +313,34 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
     if (!inteiros.has(categoria)) inteiros.set(categoria, []);
     inteiros.get(categoria)!.push({
       chave: `p:${preparo}`,
-      nome: nomeDePrato(preparo),
+      nome: nomeParaCliente(preparo),
       ids: doPreparo.map((i) => i.id),
     });
   }
 
   const secoes: SecaoDoCardapio[] = [];
-  for (const categoria of ORDEM_DAS_SECOES) {
-    for (const u of umAUm.filter((x) => x.categoria === categoria)) secoes.push(u.secao);
-    const pratos = inteiros.get(categoria);
+  for (const lugar of ORDEM_DAS_SECOES) {
+    if (lugar === 'topicos') {
+      TOPICOS.forEach((topico, t) => {
+        if (!doTopico[t].length) return;
+        secoes.push({
+          titulo: topico.titulo,
+          dica: topico.dica,
+          pratos: doTopico[t].sort((a, b) => a.posicao - b.posicao).map((x) => x.prato),
+        });
+      });
+      continue;
+    }
+    for (const u of umAUm.filter((x) => x.categoria === lugar)) secoes.push(u.secao);
+    const pratos = inteiros.get(lugar);
     if (pratos?.length) {
       secoes.push({
-        titulo: TITULO_DA_SECAO[categoria] ?? ROTULO_CATEGORIA[categoria],
+        titulo: TITULO_DA_SECAO[lugar] ?? ROTULO_CATEGORIA[lugar],
         dica: 'Cada prato já vem completo.',
-        pratos,
+        // `sort` é estável: o que não está na planilha mantém a ordem do catálogo.
+        pratos: [...pratos].sort((a, b) => posicaoNaPlanilha(a) - posicaoNaPlanilha(b)),
       });
     }
-    TOPICOS.forEach((topico, t) => {
-      if (topico.depoisDe !== categoria || !doTopico[t].length) return;
-      secoes.push({
-        titulo: topico.titulo,
-        dica: topico.dica,
-        pratos: doTopico[t].sort((a, b) => a.posicao - b.posicao).map((x) => x.prato),
-      });
-    });
   }
   return secoes;
 }

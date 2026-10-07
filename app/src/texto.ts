@@ -1,15 +1,8 @@
 import { ROTULO_CATEGORIA } from './dominio/catalogo';
+import { montarCardapio, nomeParaCliente } from './dominio/cardapio-do-cliente';
+import { condicoesDoEvento } from './dominio/condicoes';
 import { ROTULO_PAPEL, type Item, type Orcamento, type Resultado } from './dominio/tipos';
 import { dataCurta, decimal, inteiro, quantidade, real } from './formato';
-
-/** As condições que a planilha do cliente traz como observação fixa. */
-export const CONDICOES = [
-  'O evento tem duração de {horas} horas, contando a partir do início.',
-  'Chegamos sempre cedo para que tudo seja preparado com calma e no padrão Na Grelha de qualidade.',
-  'Sobre o pagamento, pedimos uma entrada ao fechar o evento e o restante em até 4 dias antes.',
-  'Por razões de segurança o buffet não disponibiliza alimentos preparados após o evento, mantendo sob sua propriedade as carnes cruas e insumos não utilizados. Caso o contratante opte por levar quaisquer sobras, assume integralmente a responsabilidade por sua conservação e consumo.',
-  'Nossa equipe é uniformizada e treinada para atender todos da melhor forma. Somos uma empresa familiar, comprometida em garantir a satisfação dos nossos clientes.',
-];
 
 /**
  * A proposta que vai para o cliente.
@@ -31,18 +24,28 @@ export function textoDaProposta(orcamento: Orcamento, resultado: Resultado) {
   linhas.push(`*Convidados:* ${inteiro(resultado.convidados)}`);
   linhas.push('');
 
-  // cardápio agrupado pelo preparo, que é como o cliente lê
-  const porGrupo = new Map<string, string[]>();
-  for (const l of resultado.linhas) {
-    if (l.item.categoria === 'estrutura' || l.item.categoria === 'limpeza') continue;
-    const chave = l.item.grupo || ROTULO_CATEGORIA[l.item.categoria];
-    if (!porGrupo.has(chave)) porGrupo.set(chave, []);
-    porGrupo.get(chave)!.push(l.item.nome);
-  }
+  /*
+    O mesmo cardápio do PDF e do link: carne e frios item a item, o resto pelo
+    nome do prato, e com a grafia corrigida para o cliente. Antes este texto
+    listava o nome cru do preparo, e saía "TUTU A MINEIRA", "FRIOS  ENTRADA"
+    e até "Fogo" e "Extra" para quem estava contratando.
+  */
+  const secoes = montarCardapio(
+    resultado.linhas.map((l, ordem) => ({
+      id: l.item.id,
+      nome: l.item.nome,
+      grupo: l.item.grupo,
+      categoria: l.item.categoria,
+      ordem,
+    })),
+  );
 
-  if (porGrupo.size) {
-    linhas.push('*O QUE ESTÁ INCLUSO*');
-    for (const [grupo] of porGrupo) linhas.push(`• ${grupo}`);
+  if (secoes.length) {
+    linhas.push('*O QUE VAI SER SERVIDO*');
+    for (const secao of secoes) {
+      linhas.push(`_${secao.titulo}_`);
+      for (const p of secao.pratos) linhas.push(`• ${p.nome}`);
+    }
     linhas.push('');
   }
 
@@ -50,7 +53,7 @@ export function textoDaProposta(orcamento: Orcamento, resultado: Resultado) {
   if (equipe.length) {
     linhas.push('*EQUIPE NO EVENTO*');
     for (const x of equipe) {
-      linhas.push(`• ${x.servico.nome}${x.servico.quantidade > 1 ? ` (${inteiro(x.servico.quantidade)})` : ''}`);
+      linhas.push(`• ${nomeParaCliente(x.servico.nome)}${x.servico.quantidade > 1 ? ` (${inteiro(x.servico.quantidade)})` : ''}`);
     }
     linhas.push('');
   }
@@ -78,8 +81,9 @@ export function textoDaProposta(orcamento: Orcamento, resultado: Resultado) {
   linhas.push('');
 
   linhas.push('*CONDIÇÕES*');
-  for (const c of CONDICOES) {
-    linhas.push(`• ${c.replace('{horas}', inteiro(orcamento.duracaoHoras))}`);
+  // As mesmas condições do PDF e do Excel, lidas do mesmo lugar.
+  for (const c of condicoesDoEvento(orcamento.duracaoHoras)) {
+    linhas.push(`• ${c}`);
   }
   linhas.push('');
   linhas.push('Orçamento fechado, sem custo oculto.');

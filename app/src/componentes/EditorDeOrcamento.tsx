@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { repositorio } from '../dados/supabase';
 import { agruparPorPreparo, EXTRAS_SUGERIDOS } from '../dominio/catalogo';
-import { calcular, faltaFaixa, redistribuirCarnes, totalDeConvidados, valorSugerido } from '../dominio/calculo';
+import { calcular, faltaFaixa, limiteDaTabela, redistribuirCarnes, totalDeConvidados, valorSugerido } from '../dominio/calculo';
 import {
   ROTULO_PAPEL,
   ROTULO_SITUACAO,
@@ -816,6 +816,11 @@ function EscalaDoEvento({ eventoId, membros }: { eventoId: string; membros: Memb
  * planilha do cliente essa seção sozinha custa mais que os insumos, então
  * esquecer uma linha aqui é o erro mais caro que o app pode deixar acontecer.
  */
+/** "A tabela vai até 300 convidados. ", ou nada a dizer quando não há teto. */
+function textoDoLimite(limite: number | null) {
+  return limite ? `A tabela vai até ${inteiro(limite)} convidados. ` : '';
+}
+
 function ServicosDoEvento({
   orcamento,
   disponiveis,
@@ -883,6 +888,9 @@ function ServicosDoEvento({
     const base = catalogo(linha.servicoId);
     return base ? faltaFaixa(base, convidados, orcamento.tipoEvento) : false;
   });
+  const passouDaTabela = (id: string) => foraDaTabela.some((l) => l.id === id);
+  // Só pede ação o que passou da tabela e ninguém digitou ainda.
+  const semValor = foraDaTabela.filter((l) => !l.valorManual);
 
   return (
     <div className="space-y-5">
@@ -892,12 +900,19 @@ function ServicosDoEvento({
         <p className="mt-2 text-sm text-fumaca">
           Equipe, frete, imposto e taxas. Entra no preço junto com as compras.
         </p>
-        {foraDaTabela.length > 0 && (
-          <p className="mt-3 rounded-xl border border-brasa/50 bg-brasa/10 p-3 text-sm text-brasa-clara">
-            <strong>{inteiro(convidados)} convidados está fora da tabela</strong> de{' '}
-            {ROTULO_TIPO_EVENTO[orcamento.tipoEvento].toLowerCase()} para{' '}
-            {foraDaTabela.map((s) => s.nome).join(', ')}. O valor abaixo é o padrão, e não o da
-            tabela. Confira com o Alan antes de mandar a proposta.
+        {/*
+          Festa maior que a tabela.
+
+          Antes aqui era só um aviso vermelho dizendo "confira com o Alan", e
+          ele não sumia nem depois do valor digitado. Agora a tela diz o que
+          fazer, e cada serviço abaixo traz o campo para isso: o Alan pediu
+          para personalizar na hora em vez de manter uma tabela até 600.
+        */}
+        {semValor.length > 0 && (
+          <p className="mt-3 rounded-xl border border-dourado/50 bg-dourado/10 p-3 text-sm text-dourado">
+            <strong>{inteiro(convidados)} convidados passa da tabela de cachê</strong> de{' '}
+            {ROTULO_TIPO_EVENTO[orcamento.tipoEvento].toLowerCase()}. Digite o cachê de{' '}
+            {semValor.map((s) => s.nome).join(', ')} logo abaixo.
           </p>
         )}
 
@@ -952,7 +967,8 @@ function ServicosDoEvento({
                 </Campo>
               </div>
             ) : (
-              <div className="mt-2 grid grid-cols-3 gap-2">
+              <>
+              <div className={`mt-2 grid gap-2 ${passouDaTabela(s.id) ? 'grid-cols-2' : 'grid-cols-3'}`}>
                 <Campo rotulo="Quem">
                   <CampoTexto
                     valor={s.pessoa}
@@ -968,15 +984,91 @@ function ServicosDoEvento({
                     aria-label={`Quantidade de ${s.nome}`}
                   />
                 </Campo>
-                <Campo rotulo="Valor">
-                  <CampoNumero
-                    valor={s.valor}
-                    aoMudar={(v) => atualizar(s.id, { valor: v, valorManual: true })}
-                    sufixo="R$"
-                    aria-label={`Valor de ${s.nome}`}
-                  />
-                </Campo>
+                {/* Acima da tabela o valor vai para a caixa de baixo, e não fica
+                    em dois campos ao mesmo tempo. */}
+                {!passouDaTabela(s.id) && (
+                  <Campo rotulo="Valor">
+                    <CampoNumero
+                      valor={s.valor}
+                      aoMudar={(v) => atualizar(s.id, { valor: v, valorManual: true })}
+                      sufixo="R$"
+                      aria-label={`Valor de ${s.nome}`}
+                    />
+                  </Campo>
+                )}
               </div>
+
+              {/*
+                Cachê personalizado, para festa maior que a tabela.
+
+                A caixa fica enquanto a festa estiver acima da tabela, e só muda
+                de "digite" para "personalizado". Se ela sumisse quando o valor
+                vira manual, o campo sumiria no primeiro número digitado e a
+                pessoa perderia o foco no meio da digitação.
+              */}
+              {passouDaTabela(s.id) && (
+                <div
+                  className={`mt-2 rounded-xl border p-3 ${
+                    s.valorManual ? 'border-verde/40 bg-verde/5' : 'border-dourado/60 bg-dourado/10'
+                  }`}
+                >
+                  <p className={`text-sm ${s.valorManual ? 'text-creme' : 'text-dourado'}`}>
+                    {s.valorManual ? (
+                      <>
+                        Cachê personalizado para <strong>{inteiro(convidados)} convidados</strong>.
+                      </>
+                    ) : (
+                      <>
+                        {textoDoLimite(limiteDaTabela(catalogo(s.servicoId)!, orcamento.tipoEvento))}
+                        <strong>
+                          Qual o cachê de {s.nome} para {inteiro(convidados)} convidados?
+                        </strong>
+                      </>
+                    )}
+                  </p>
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    <div className="w-40">
+                      <CampoNumero
+                        valor={s.valor}
+                        aoMudar={(v) => atualizar(s.id, { valor: v, valorManual: true })}
+                        sufixo="R$"
+                        aria-label={`Cachê de ${s.nome} para ${convidados} convidados`}
+                      />
+                    </div>
+                    {s.valorManual ? (
+                      <button
+                        type="button"
+                        className="text-xs text-fumaca underline-offset-2 hover:text-creme hover:underline"
+                        onClick={() =>
+                          atualizar(s.id, {
+                            valorManual: false,
+                            valor: valorSugerido(catalogo(s.servicoId)!, convidados, orcamento.tipoEvento),
+                          })
+                        }
+                      >
+                        Usar o valor padrão
+                      </button>
+                    ) : (
+                      <span className="text-xs text-fumaca">Até digitar, fica o padrão de {real(s.valor)}.</span>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {/* Dentro da tabela, valor digitado à mão também pode voltar ao automático. */}
+              {!passouDaTabela(s.id) && s.valorManual && catalogo(s.servicoId)?.usaFaixa && (
+                <p className="mt-1 text-xs text-fumaca">
+                  Valor digitado à mão.{' '}
+                  <button
+                    type="button"
+                    className="underline-offset-2 hover:text-creme hover:underline"
+                    onClick={() => atualizar(s.id, { valorManual: false })}
+                  >
+                    Voltar para a tabela
+                  </button>
+                </p>
+              )}
+              </>
             )}
 
             <p className="mt-2 text-right text-sm text-fumaca">

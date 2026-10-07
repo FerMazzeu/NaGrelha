@@ -97,6 +97,19 @@ export function faltaFaixa(servico: Servico, convidados: number, tipo: TipoDeEve
   return !servico.faixas.some((f) => (f.tipo === tipo || f.tipo === null) && cabe(f));
 }
 
+/**
+ * Até quantos convidados a tabela do serviço cobre, para este tipo de evento.
+ *
+ * É o número que a tela mostra quando a festa passa da tabela ("a tabela vai
+ * até 300"). Nulo quando a última faixa não tem teto, ou quando não há tabela
+ * para comparar.
+ */
+export function limiteDaTabela(servico: Servico, tipo: TipoDeEvento | null) {
+  const valem = servico.faixas.filter((f) => f.tipo === tipo || f.tipo === null);
+  if (!valem.length || valem.some((f) => f.max === null)) return null;
+  return Math.max(...valem.map((f) => f.max as number));
+}
+
 export function calcular(orcamento: Orcamento): Resultado {
   const pessoas = pessoasEquivalentes(orcamento);
   const convidados = totalDeConvidados(orcamento);

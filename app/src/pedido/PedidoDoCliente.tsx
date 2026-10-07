@@ -105,8 +105,8 @@ export default function PedidoDoCliente() {
       const msg = mensagemDe(e);
       setErroDeEnvio(
         /muitos pedidos/i.test(msg)
-          ? 'Recebemos muitos pedidos agora há pouco. Tenta de novo em alguns minutos, por favor.'
-          : 'Não consegui enviar. Confere a internet e tenta de novo — o que você preencheu continua aqui.',
+          ? 'Recebemos muitos pedidos há pouco. Tente de novo em alguns minutos, por favor.'
+          : 'Não foi possível enviar. Confira a internet e tente de novo: o que você preencheu continua aqui.',
       );
       setEtapa('preenchendo');
     }
@@ -137,7 +137,7 @@ export default function PedidoDoCliente() {
           <div className="cartao p-5 text-center">
             <p className="font-semibold">O cardápio não abriu agora.</p>
             <p className="mt-2 text-sm text-fumaca">
-              Tenta de novo daqui a pouco, ou chama a gente no WhatsApp que montamos com você.
+              Tente de novo daqui a pouco ou fale com a gente pelo WhatsApp, que montamos o cardápio com você.
             </p>
           </div>
         </div>
@@ -153,8 +153,8 @@ export default function PedidoDoCliente() {
           <div className="cartao border-verde/50 p-6 text-center">
             <p className="titulo text-xl text-verde">Pedido recebido</p>
             <p className="mt-3 text-sm text-fumaca">
-              Obrigado, {cliente.trim().split(' ')[0]}! A gente vai conferir o cardápio e te mandar o orçamento
-              pelo WhatsApp {contato}.
+              Obrigado, {cliente.trim().split(' ')[0]}! Vamos conferir o cardápio e enviar o seu orçamento pelo
+              WhatsApp {contato}.
             </p>
           </div>
         </div>
@@ -166,8 +166,8 @@ export default function PedidoDoCliente() {
     <div className="min-h-[100svh] pb-32">
       {topo}
       <p className="area mx-auto mt-2 max-w-xl text-center text-sm text-fumaca">
-        Conta pra gente sobre o evento e marque o que você quer servir. Não é compromisso: a gente confere e te
-        manda o orçamento pelo WhatsApp.
+        Conte para nós sobre o evento e marque o que você quer servir. Não é compromisso: vamos conferir e
+        enviar o orçamento pelo WhatsApp.
       </p>
 
       <div className="area mt-8 max-w-2xl space-y-8">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState, Fragment } from 'react';
-import { montarCardapio } from '../dominio/cardapio-do-cliente';
+import { montarCardapio, nomeParaCliente } from '../dominio/cardapio-do-cliente';
 import { CONTATO_DUVIDAS, condicoesDoEvento } from '../dominio/condicoes';
 import type { Orcamento, Resultado } from '../dominio/tipos';
 import { dataCurta, inteiro, real } from '../formato';
@@ -220,7 +220,7 @@ export default function Proposta({
               {inclusos.map((s) => (
                 <li key={s.servico.id}>
                   {s.servico.quantidade > 1 ? `${inteiro(s.servico.quantidade)}× ` : ''}
-                  {s.servico.nome}
+                  {nomeParaCliente(s.servico.nome)}
                 </li>
               ))}
             </ul>
