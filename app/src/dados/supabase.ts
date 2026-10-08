@@ -61,11 +61,53 @@ type LinhaItem = {
 
 type LinhaCusto = { id: string; descricao: string; valor: number };
 
+/*
+  O id do item dentro do orçamento.
+
+  É o do catálogo quando existe, porque é ele que a seleção referencia. Linha
+  sem `item_id` (orçamento antigo, ou cópia dele) usava o id da própria linha,
+  que é um uuid com hífen. Na gravação seguinte, hífen quer dizer "é do
+  catálogo", e esse id ia parar em `item_id`, apontando para um item que não
+  existe: o banco recusava a regravação inteira. Sem hífen, ele grava como
+  "sem item do catálogo", que é o que ele é.
+*/
+const idDoItem = (l: { id: string; item_id: string | null }) => l.item_id ?? `linha${l.id.replace(/-/g, '')}`;
+
+/** Número que o banco aceita: NaN e infinito viram zero em vez de derrubar a gravação. */
+const num = (n: number) => (Number.isFinite(n) ? n : 0);
+
+/**
+ * Troca as linhas de uma tabela filha do evento sem nunca deixar vazio.
+ *
+ * Antes era apagar e regravar. Se a regravação falhava (uma linha recusada
+ * pelo banco já basta), o evento ficava sem nada: foi assim que o orçamento
+ * de uma cliente perdeu o cardápio depois de pronto, com o PDF já enviado.
+ *
+ * Agora o que estava no banco é lido antes, e se a regravação falhar, volta.
+ * O erro sobe do mesmo jeito, e aparece na tela, mas o orçamento continua
+ * como estava na última gravação boa.
+ */
+async function reescrever(tabela: string, eventoId: string, linhas: Record<string, unknown>[]) {
+  const { data: antes, error: erroAoLer } = await supabase.from(tabela).select('*').eq('evento_id', eventoId);
+  if (erroAoLer) throw erroAoLer;
+
+  const { error: erroAoApagar } = await supabase.from(tabela).delete().eq('evento_id', eventoId);
+  if (erroAoApagar) throw erroAoApagar;
+  if (!linhas.length) return;
+
+  const { error } = await supabase.from(tabela).insert(linhas);
+  if (!error) return;
+
+  if (antes?.length) {
+    const { error: erroAoDevolver } = await supabase.from(tabela).insert(antes);
+    if (erroAoDevolver) console.error(`não consegui devolver ${tabela} do evento ${eventoId}`, erroAoDevolver);
+  }
+  throw error;
+}
+
 function paraItem(l: LinhaItem): Item {
   return {
-    // O id do domínio é o do catálogo quando existe, porque é ele que a
-    // seleção referencia. Item apagado do catálogo sobrevive pelo id da linha.
-    id: l.item_id ?? l.id,
+    id: idDoItem(l),
     nome: l.nome,
     grupo: l.grupo ?? '',
     categoria: l.categoria,
@@ -152,7 +194,7 @@ function montar(
         valorManual: Boolean(x.valor_manual ?? false),
       })),
     itens: ordenados.map(paraItem),
-    selecionados: ordenados.filter((l) => l.selecionado).map((l) => l.item_id ?? l.id),
+    selecionados: ordenados.filter((l) => l.selecionado).map(idDoItem),
     custosExtras: custos.map((c) => ({ id: c.id, descricao: c.descricao, valor: Number(c.valor) })),
     margem: Number(evento.margem),
     fatorCarvao: Number(evento.fator_carvao),
@@ -174,19 +216,46 @@ async function carregarPartes(ids: string[]) {
   };
   if (!ids.length) return vazio;
 
-  const [{ data: itens }, { data: custos }, { data: servicos }, { data: faixas }] = await Promise.all([
-    supabase.from('evento_itens').select('*').in('evento_id', ids),
-    supabase.from('evento_custos').select('*').in('evento_id', ids),
-    supabase.from('evento_servicos').select('*').in('evento_id', ids),
-    supabase.from('evento_faixas').select('*').in('evento_id', ids),
+  const [itens, custos, servicos, faixas] = await Promise.all([
+    todasAsLinhas<(typeof vazio.itens)[number]>('evento_itens', ids),
+    todasAsLinhas<(typeof vazio.custos)[number]>('evento_custos', ids),
+    todasAsLinhas<(typeof vazio.servicos)[number]>('evento_servicos', ids),
+    todasAsLinhas<(typeof vazio.faixas)[number]>('evento_faixas', ids),
   ]);
 
-  return {
-    itens: (itens ?? []) as typeof vazio.itens,
-    custos: (custos ?? []) as typeof vazio.custos,
-    servicos: (servicos ?? []) as typeof vazio.servicos,
-    faixas: (faixas ?? []) as typeof vazio.faixas,
-  };
+  return { itens, custos, servicos, faixas };
+}
+
+/*
+  Leitura de uma tabela filha para vários eventos, inteira.
+
+  O Supabase devolve no máximo 1000 linhas por consulta e corta o resto sem
+  avisar. Cada orçamento novo copia o catálogo inteiro, uns 150 itens, e com
+  1147 linhas no banco a leitura de uma vez trazia só 1000: os orçamentos que
+  caíam fora do corte abriam SEM CARDÁPIO, e a primeira edição gravava o
+  vazio. Foi assim que dois orçamentos perderam o cardápio em out/2026.
+
+  Agora vem de página em página, numa ordem fixa (sem ordem, duas páginas
+  podem repetir ou pular linha), até a página vir incompleta.
+
+  E erro de leitura sobe. Antes ele virava lista vazia, que é o mesmo
+  desastre por outro caminho.
+*/
+const PAGINA = 1000;
+
+async function todasAsLinhas<T>(tabela: string, ids: string[]): Promise<T[]> {
+  const linhas: T[] = [];
+  for (let de = 0; ; de += PAGINA) {
+    const { data, error } = await supabase
+      .from(tabela)
+      .select('*')
+      .in('evento_id', ids)
+      .order('id')
+      .range(de, de + PAGINA - 1);
+    if (error) throw error;
+    linhas.push(...((data ?? []) as T[]));
+    if (!data || data.length < PAGINA) return linhas;
+  }
 }
 
 export const repositorioSupabase: Repositorio = {
@@ -240,11 +309,16 @@ export const repositorioSupabase: Repositorio = {
     });
     if (error) throw error;
 
-    // Itens e custos são reescritos por inteiro. São poucas dezenas de linhas
-    // por evento, e reconciliar diferença aqui só traria bug sutil de sincronia.
-    await supabase.from('evento_itens').delete().eq('evento_id', o.id);
-    if (o.itens.length) {
-      const { error: e2 } = await supabase.from('evento_itens').insert(
+    // Cada tabela filha é trocada por inteiro, mas nunca fica vazia por erro:
+    // ver `reescrever`. A ordem importa pouco agora, porque uma falha não
+    // apaga nada, e todas são tentadas antes de reclamar.
+    const falhas: unknown[] = [];
+    const tentar = (p: Promise<void>) => p.catch((e) => void falhas.push(e));
+
+    await tentar(
+      reescrever(
+        'evento_itens',
+        o.id,
         o.itens.map((i, ordem) => ({
           evento_id: o.id,
           item_id: i.id.includes('-') ? i.id : null,
@@ -252,57 +326,59 @@ export const repositorioSupabase: Repositorio = {
           grupo: i.grupo,
           categoria: i.categoria,
           unidade: i.unidade,
-          por_pessoa: i.porPessoa,
-          rendimento: i.rendimento,
-          preco: i.preco,
-          embalagens: i.embalagens ?? [],
+          por_pessoa: num(i.porPessoa),
+          rendimento: num(i.rendimento),
+          preco: num(i.preco),
+          embalagens: (i.embalagens ?? []).filter((e) => Number.isFinite(e)),
           selecionado: o.selecionados.includes(i.id),
           ordem,
         })),
-      );
-      if (e2) throw e2;
-    }
+      ),
+    );
 
-    await supabase.from('evento_custos').delete().eq('evento_id', o.id);
-    if (o.custosExtras.length) {
-      await supabase.from('evento_custos').insert(
-        o.custosExtras.map((c) => ({ evento_id: o.id, descricao: c.descricao, valor: c.valor })),
-      );
-    }
+    await tentar(
+      reescrever(
+        'evento_custos',
+        o.id,
+        o.custosExtras.map((c) => ({ evento_id: o.id, descricao: c.descricao, valor: num(c.valor) })),
+      ),
+    );
 
-    await supabase.from('evento_servicos').delete().eq('evento_id', o.id);
-    if (o.servicos.length) {
-      const { error: e3 } = await supabase.from('evento_servicos').insert(
+    await tentar(
+      reescrever(
+        'evento_servicos',
+        o.id,
         o.servicos.map((x, ordem) => ({
           evento_id: o.id,
           servico_id: x.servicoId,
           nome: x.nome,
           papel: x.papel,
           pessoa: x.pessoa,
-          quantidade: x.quantidade,
-          valor: x.valor,
-          percentual: x.percentual,
+          quantidade: num(x.quantidade),
+          valor: num(x.valor),
+          percentual: num(x.percentual),
           valor_manual: x.valorManual,
           ordem,
         })),
-      );
-      if (e3) throw e3;
-    }
+      ),
+    );
 
-    await supabase.from('evento_faixas').delete().eq('evento_id', o.id);
-    if (o.faixas.length) {
-      const { error: e4 } = await supabase.from('evento_faixas').insert(
+    await tentar(
+      reescrever(
+        'evento_faixas',
+        o.id,
         o.faixas.map((f, ordem) => ({
           evento_id: o.id,
           faixa_id: f.faixaId,
           nome: f.nome,
-          percentual: f.percentual,
-          quantidade: f.quantidade,
+          percentual: num(f.percentual),
+          quantidade: num(f.quantidade),
           ordem,
         })),
-      );
-      if (e4) throw e4;
-    }
+      ),
+    );
+
+    if (falhas.length) throw falhas[0];
   },
 
   async removerOrcamento(id) {
