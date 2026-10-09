@@ -15,6 +15,8 @@ import { orcamentoNovo } from './dominio/orcamento-novo';
 import { useGravacaoEnfileirada } from './gravacao';
 import { supabase } from './integrations/supabase/client';
 import Moldura, { type Aba } from './componentes/Moldura';
+import AvisoDeVersao from './componentes/AvisoDeVersao';
+import { useVersaoNova } from './versao';
 import { mensagemDe } from './erro';
 
 export default function App() {
@@ -23,6 +25,7 @@ export default function App() {
   const [aprovado, setAprovado] = useState<boolean | null>(null);
 
   const [aba, setAba] = useState<Aba>('orcamentos');
+  const versaoNova = useVersaoNova();
   const [abertoId, setAbertoId] = useState<string | null>(null);
 
   const [orcamentos, setOrcamentos] = useState<Orcamento[]>([]);
@@ -109,7 +112,7 @@ export default function App() {
    * Por isso passa por fila: duas gravacoes ao mesmo tempo apagavam as duas
    * antes de escrever as duas, e o cardapio saia em dobro.
    */
-  const { agendar, agora: gravarAgora } = useGravacaoEnfileirada<Orcamento>(
+  const { agendar, agora: gravarAgora, esvaziar } = useGravacaoEnfileirada<Orcamento>(
     (o) => repositorio.salvarOrcamento(o),
     setErro,
   );
@@ -194,6 +197,7 @@ export default function App() {
   if (aberto) {
     return (
       <Moldura {...moldura}>
+        {versaoNova && <AvisoDeVersao antesDeAtualizar={esvaziar} />}
         <EditorDeOrcamento
           orcamento={aberto}
           membros={membros}
@@ -217,6 +221,7 @@ export default function App() {
 
   return (
     <Moldura {...moldura}>
+      {versaoNova && <AvisoDeVersao antesDeAtualizar={esvaziar} />}
       {erro && (
         <div className="area pt-4">
           <p className="rounded-xl border border-brasa/50 bg-brasa/10 p-3 text-sm text-brasa-clara">{erro}</p>

@@ -33,6 +33,28 @@ describe('fila de gravação', () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
+  it('esvaziar espera a gravação em andamento, e não só a que está na fila', async () => {
+    // É o que roda antes de recarregar a página para a versão nova: voltar
+    // antes da hora cortaria a gravação no meio.
+    const banco = bancoFalso();
+    const fila = criarFila<Doc>((d) => banco.gravar(d), () => {}, 600);
+
+    fila.agendar({ id: 'a', texto: 'primeira' });
+    void fila.agora();                         // começa a gravar
+    fila.agendar({ id: 'a', texto: 'segunda' }); // chega enquanto grava
+
+    let terminou = false;
+    const esvaziando = fila.esvaziar().then(() => (terminou = true));
+    await vi.advanceTimersByTimeAsync(5);
+    expect(terminou).toBe(false);
+
+    await vi.advanceTimersByTimeAsync(500);
+    await esvaziando;
+
+    expect(fila.temPendente()).toBe(false);
+    expect(banco.linhas).toEqual(['a:segunda']);
+  });
+
   it('digitar dez letras grava uma vez só, com a última versão', async () => {
     const gravar = vi.fn(async () => {});
     const fila = criarFila<Doc>(gravar, () => {}, 600);

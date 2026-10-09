@@ -70,6 +70,21 @@ export function criarFila<T extends { id: string }>(
     temPendente() {
       return pendentes.size > 0 || emCurso;
     },
+
+    /**
+     * Só termina quando não sobrar nada: nem esperando, nem gravando.
+     *
+     * `agora()` não basta para recarregar a página: se uma gravação já está
+     * em andamento, ele volta na hora, e o recarregar cortaria ela no meio.
+     */
+    async esvaziar() {
+      if (timer) clearTimeout(timer);
+      await descarregar();
+      while (pendentes.size > 0 || emCurso) {
+        await new Promise((ok) => setTimeout(ok, 100));
+        await descarregar();
+      }
+    },
   };
 }
 
@@ -108,5 +123,5 @@ export function useGravacaoEnfileirada<T extends { id: string }>(
     return () => window.removeEventListener('beforeunload', aoSair);
   }, [fila]);
 
-  return { agendar: fila.agendar, agora: fila.agora };
+  return { agendar: fila.agendar, agora: fila.agora, esvaziar: fila.esvaziar };
 }

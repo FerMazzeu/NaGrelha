@@ -509,3 +509,19 @@
     margin: 1.4cm;
   }
 }
+
+/* O aviso de versão nova aparece crescendo um pouco, e fica. Sem direção,
+   porque no celular ele mora embaixo e no computador em cima. Quem pediu
+   menos movimento no sistema vê ele aparecer parado. */
+@media (prefers-reduced-motion: no-preference) {
+  .aviso-de-versao {
+    animation: aviso-de-versao-entra 360ms ease-out both;
+  }
+}
+
+@keyframes aviso-de-versao-entra {
+  from {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+}
