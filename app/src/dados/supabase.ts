@@ -154,6 +154,7 @@ function montar(
   faixas: LinhaFaixa[],
 ): Orcamento {
   const ordenados = [...itens].sort((a, b) => a.ordem - b.ordem);
+  versoes.set(evento.id, evento.atualizado_em);
   return {
     id: evento.id,
     cliente: evento.cliente,
@@ -258,6 +259,119 @@ async function todasAsLinhas<T>(tabela: string, ids: string[]): Promise<T[]> {
   }
 }
 
+/*
+  A versão de cada orçamento que este aparelho conhece: o `atualizado_em` do
+  banco quando ele foi lido ou gravado daqui pela última vez.
+
+  Vai junto em cada gravação. Se no banco estiver outra, alguém gravou por
+  cima de outro aparelho, e a gravação é recusada em vez de apagar o trabalho
+  dessa pessoa com uma cópia velha.
+*/
+const versoes = new Map<string, string>();
+
+export const ORCAMENTO_ALTERADO =
+  'Este orçamento foi alterado em outro aparelho ou aba. Aperte F5 para ver a versão mais nova: a última mudança feita aqui não foi gravada.';
+
+export const ORCAMENTO_EXCLUIDO =
+  'Este orçamento foi excluído em outro aparelho, e a mudança feita aqui não foi gravada. Aperte F5 para atualizar a lista.';
+
+/** O banco ainda não tem a função `salvar_orcamento` (migração 008). */
+function funcaoNaoExiste(e: { code?: string; message?: string }) {
+  return e.code === 'PGRST202' || e.code === '42883' || /could not find the function/i.test(e.message ?? '');
+}
+
+type LinhasDoOrcamento = {
+  evento: Record<string, unknown>;
+  itens: Record<string, unknown>[];
+  custos: Record<string, unknown>[];
+  servicos: Record<string, unknown>[];
+  faixas: Record<string, unknown>[];
+};
+
+/** O orçamento do domínio traduzido nas linhas das cinco tabelas. */
+function linhasDoOrcamento(o: Orcamento): LinhasDoOrcamento {
+  return {
+    evento: {
+      id: o.id,
+      cliente: o.cliente,
+      contato: o.contato,
+      data: ouNulo(o.data),
+      hora: ouNulo(o.hora),
+      local: o.local,
+      observacoes: o.observacoes,
+      situacao: o.situacao,
+      tipo_evento: o.tipoEvento,
+      adultos: num(o.adultos),
+      // a coluna antiga vira o total, para relatorio antigo nao quebrar
+      criancas: o.faixas.reduce((s, f) => s + num(f.quantidade), 0),
+      apetite: o.apetite,
+      duracao_horas: num(o.duracaoHoras),
+      margem: num(o.margem),
+      fator_carvao: num(o.fatorCarvao),
+      preco_carvao: num(o.precoCarvao),
+    },
+    itens: o.itens.map((i, ordem) => ({
+      evento_id: o.id,
+      item_id: i.id.includes('-') ? i.id : null,
+      nome: i.nome,
+      grupo: i.grupo,
+      categoria: i.categoria,
+      unidade: i.unidade,
+      por_pessoa: num(i.porPessoa),
+      rendimento: num(i.rendimento),
+      preco: num(i.preco),
+      embalagens: (i.embalagens ?? []).filter((e) => Number.isFinite(e)),
+      selecionado: o.selecionados.includes(i.id),
+      ordem,
+    })),
+    custos: o.custosExtras.map((c) => ({ evento_id: o.id, descricao: c.descricao, valor: num(c.valor) })),
+    servicos: o.servicos.map((x, ordem) => ({
+      evento_id: o.id,
+      servico_id: x.servicoId,
+      nome: x.nome,
+      papel: x.papel,
+      pessoa: x.pessoa,
+      quantidade: num(x.quantidade),
+      valor: num(x.valor),
+      percentual: num(x.percentual),
+      valor_manual: x.valorManual,
+      ordem,
+    })),
+    faixas: o.faixas.map((f, ordem) => ({
+      evento_id: o.id,
+      faixa_id: f.faixaId,
+      nome: f.nome,
+      percentual: num(f.percentual),
+      quantidade: num(f.quantidade),
+      ordem,
+    })),
+  };
+}
+
+/**
+ * O jeito antigo, tabela por tabela, enquanto o banco não tem a migração 008.
+ *
+ * Não é atômico: entre apagar e inserir, quem lê vê a tabela vazia. Fica só
+ * para o app novo não quebrar se for publicado antes da migração rodar.
+ */
+async function salvarEmPartes(id: string, l: LinhasDoOrcamento) {
+  const { error } = await supabase.from('eventos').upsert(l.evento);
+  if (error) throw error;
+
+  // Sem a conferência de versão, o que sabemos do banco deixou de valer.
+  versoes.delete(id);
+
+  // Cada tabela filha é trocada por inteiro, mas nunca fica vazia por erro:
+  // ver `reescrever`. Todas são tentadas antes de reclamar.
+  const falhas: unknown[] = [];
+  const tentar = (p: Promise<void>) => p.catch((e) => void falhas.push(e));
+  await tentar(reescrever('evento_itens', id, l.itens));
+  await tentar(reescrever('evento_custos', id, l.custos));
+  await tentar(reescrever('evento_servicos', id, l.servicos));
+  await tentar(reescrever('evento_faixas', id, l.faixas));
+  if (falhas.length) throw falhas[0];
+}
+
 export const repositorioSupabase: Repositorio = {
   async listarOrcamentos() {
     const { data: eventos, error } = await supabase
@@ -288,97 +402,22 @@ export const repositorioSupabase: Repositorio = {
   },
 
   async salvarOrcamento(o) {
-    const { error } = await supabase.from('eventos').upsert({
-      id: o.id,
-      cliente: o.cliente,
-      contato: o.contato,
-      data: ouNulo(o.data),
-      hora: ouNulo(o.hora),
-      local: o.local,
-      observacoes: o.observacoes,
-      situacao: o.situacao,
-      tipo_evento: o.tipoEvento,
-      adultos: o.adultos,
-      // a coluna antiga vira o total, para relatorio antigo nao quebrar
-      criancas: o.faixas.reduce((s, f) => s + f.quantidade, 0),
-      apetite: o.apetite,
-      duracao_horas: o.duracaoHoras,
-      margem: o.margem,
-      fator_carvao: o.fatorCarvao,
-      preco_carvao: o.precoCarvao,
+    const linhas = linhasDoOrcamento(o);
+
+    const { data, error } = await supabase.rpc('salvar_orcamento', {
+      p: linhas,
+      p_versao: versoes.get(o.id) ?? null,
     });
-    if (error) throw error;
+    if (!error) {
+      if (typeof data === 'string') versoes.set(o.id, data);
+      return;
+    }
+    if (error.message?.includes('ORCAMENTO_ALTERADO')) throw new Error(ORCAMENTO_ALTERADO);
+    if (error.message?.includes('ORCAMENTO_EXCLUIDO')) throw new Error(ORCAMENTO_EXCLUIDO);
+    if (!funcaoNaoExiste(error)) throw error;
 
-    // Cada tabela filha é trocada por inteiro, mas nunca fica vazia por erro:
-    // ver `reescrever`. A ordem importa pouco agora, porque uma falha não
-    // apaga nada, e todas são tentadas antes de reclamar.
-    const falhas: unknown[] = [];
-    const tentar = (p: Promise<void>) => p.catch((e) => void falhas.push(e));
-
-    await tentar(
-      reescrever(
-        'evento_itens',
-        o.id,
-        o.itens.map((i, ordem) => ({
-          evento_id: o.id,
-          item_id: i.id.includes('-') ? i.id : null,
-          nome: i.nome,
-          grupo: i.grupo,
-          categoria: i.categoria,
-          unidade: i.unidade,
-          por_pessoa: num(i.porPessoa),
-          rendimento: num(i.rendimento),
-          preco: num(i.preco),
-          embalagens: (i.embalagens ?? []).filter((e) => Number.isFinite(e)),
-          selecionado: o.selecionados.includes(i.id),
-          ordem,
-        })),
-      ),
-    );
-
-    await tentar(
-      reescrever(
-        'evento_custos',
-        o.id,
-        o.custosExtras.map((c) => ({ evento_id: o.id, descricao: c.descricao, valor: num(c.valor) })),
-      ),
-    );
-
-    await tentar(
-      reescrever(
-        'evento_servicos',
-        o.id,
-        o.servicos.map((x, ordem) => ({
-          evento_id: o.id,
-          servico_id: x.servicoId,
-          nome: x.nome,
-          papel: x.papel,
-          pessoa: x.pessoa,
-          quantidade: num(x.quantidade),
-          valor: num(x.valor),
-          percentual: num(x.percentual),
-          valor_manual: x.valorManual,
-          ordem,
-        })),
-      ),
-    );
-
-    await tentar(
-      reescrever(
-        'evento_faixas',
-        o.id,
-        o.faixas.map((f, ordem) => ({
-          evento_id: o.id,
-          faixa_id: f.faixaId,
-          nome: f.nome,
-          percentual: num(f.percentual),
-          quantidade: num(f.quantidade),
-          ordem,
-        })),
-      ),
-    );
-
-    if (falhas.length) throw falhas[0];
+    // Banco ainda sem a migração 008: grava do jeito antigo, em partes.
+    await salvarEmPartes(o.id, linhas);
   },
 
   async removerOrcamento(id) {

@@ -49,7 +49,8 @@ export function textoDaProposta(orcamento: Orcamento, resultado: Resultado) {
     linhas.push('');
   }
 
-  const equipe = resultado.servicos.filter((x) => x.servico.papel === 'equipe');
+  // Quantidade zero é serviço tirado do evento: o PDF também não mostra.
+  const equipe = resultado.servicos.filter((x) => x.servico.papel === 'equipe' && x.servico.quantidade > 0);
   if (equipe.length) {
     linhas.push('*EQUIPE NO EVENTO*');
     for (const x of equipe) {

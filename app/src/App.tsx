@@ -47,6 +47,17 @@ export default function App() {
     return () => assinatura.subscription.unsubscribe();
   }, []);
 
+  /*
+    Quem está logado, e não o objeto da sessão.
+
+    O Supabase entrega uma sessão NOVA toda vez que a aba volta a ficar
+    visível (renova o login e avisa "SIGNED_IN"). Com a sessão como gatilho,
+    ir no WhatsApp e voltar recarregava a lista inteira por cima da tela, e se
+    isso caísse no meio de uma gravação, o orçamento aberto vinha oco. Foi o
+    "preço pela metade" de 12/10/2026. O id só muda quando muda a pessoa.
+  */
+  const usuarioId = sessao?.user.id ?? null;
+
   const carregar = useCallback(async () => {
     setCarregando(true);
     setErro('');
@@ -57,7 +68,7 @@ export default function App() {
       const { data: perfil } = await supabase
         .from('perfis')
         .select('aprovado')
-        .eq('id', sessao!.user.id)
+        .eq('id', usuarioId!)
         .maybeSingle();
 
       const liberado = !!perfil?.aprovado;
@@ -101,18 +112,18 @@ export default function App() {
     } finally {
       setCarregando(false);
     }
-  }, [sessao]);
+  }, [usuarioId]);
 
   useEffect(() => {
-    if (sessao) carregar();
-  }, [sessao, carregar]);
+    if (usuarioId) carregar();
+  }, [usuarioId, carregar]);
 
   /**
    * Gravar o orcamento inteiro e apagar as linhas de item e reescrever todas.
    * Por isso passa por fila: duas gravacoes ao mesmo tempo apagavam as duas
    * antes de escrever as duas, e o cardapio saia em dobro.
    */
-  const { agendar, agora: gravarAgora, esvaziar } = useGravacaoEnfileirada<Orcamento>(
+  const { agendar, agora: gravarAgora, esvaziar, cancelar } = useGravacaoEnfileirada<Orcamento>(
     (o) => repositorio.salvarOrcamento(o),
     setErro,
   );
@@ -142,6 +153,18 @@ export default function App() {
     lembrar(o);
     try {
       await repositorio.salvarOrcamento(o);
+    } catch (e) {
+      setErro(mensagemDe(e));
+    }
+  };
+
+  /** Excluir sem deixar gravação na fila, que recriaria o orçamento. */
+  const remover = async (id: string) => {
+    setOrcamentos((a) => a.filter((o) => o.id !== id));
+    if (abertoId === id) setAbertoId(null);
+    try {
+      await cancelar(id);
+      await repositorio.removerOrcamento(id);
     } catch (e) {
       setErro(mensagemDe(e));
     }
@@ -198,6 +221,12 @@ export default function App() {
     return (
       <Moldura {...moldura}>
         {versaoNova && <AvisoDeVersao antesDeAtualizar={esvaziar} />}
+        {/* Erro de gravação aparece aqui também: é no editor que se grava. */}
+        {erro && (
+          <div className="area pt-4">
+            <p className="rounded-xl border border-brasa/50 bg-brasa/10 p-3 text-sm text-brasa-clara">{erro}</p>
+          </div>
+        )}
         <EditorDeOrcamento
           orcamento={aberto}
           membros={membros}
@@ -209,11 +238,7 @@ export default function App() {
             gravarAgora();
             setAbertoId(null);
           }}
-          aoRemover={async () => {
-            setOrcamentos((a) => a.filter((o) => o.id !== aberto.id));
-            setAbertoId(null);
-            await repositorio.removerOrcamento(aberto.id);
-          }}
+          aoRemover={() => void remover(aberto.id)}
         />
       </Moldura>
     );
@@ -241,10 +266,7 @@ export default function App() {
                 await salvarJa(o);
                 setAbertoId(o.id);
               }}
-              aoRemover={async (id) => {
-                setOrcamentos((a) => a.filter((o) => o.id !== id));
-                await repositorio.removerOrcamento(id);
-              }}
+              aoRemover={remover}
               aoDuplicar={async (id) => {
                 const base = orcamentos.find((o) => o.id === id);
                 if (!base) return;

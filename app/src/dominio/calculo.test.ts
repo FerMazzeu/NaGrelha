@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   arredondarCompra,
   arredondarPreco,
+  cacheEmDia,
   calcular,
   faltaFaixa,
   limiteDaTabela,
@@ -428,5 +429,40 @@ describe('redistribuir carnes', () => {
 
   it('devolve tudo intacto quando não há carne selecionada', () => {
     expect(redistribuirCarnes(itens, ['c'], 300)).toEqual(itens);
+  });
+});
+
+describe('cachê em dia com os convidados', () => {
+  const alan = {
+    id: 'alan',
+    nome: 'Churrasqueiro',
+    papel: 'equipe' as const,
+    valorPadrao: 600,
+    usaFaixa: true,
+    percentual: 0,
+    faixas: [
+      { min: 1, max: 30, valor: 500, tipo: 'aniversario' as const },
+      { min: 31, max: 150, valor: 1200, tipo: 'aniversario' as const },
+    ],
+  };
+  const linha = (valor: number, valorManual = false) => ({
+    id: 'l1', servicoId: 'alan', nome: 'Churrasqueiro', papel: 'equipe' as const, pessoa: '',
+    quantidade: 1, valor, percentual: 0, valorManual,
+  });
+
+  it('mudar os convidados fora da aba Serviços já acerta o cachê', () => {
+    // Era o caso: 30 pessoas, corrige para 120 na aba Evento, manda o PDF.
+    const o = cacheEmDia(orcamentoDe({ adultos: 120, servicos: [linha(500)] }), [alan]);
+    expect(o.servicos[0].valor).toBe(1200);
+  });
+
+  it('valor digitado à mão não é tocado', () => {
+    const o = cacheEmDia(orcamentoDe({ adultos: 120, servicos: [linha(450, true)] }), [alan]);
+    expect(o.servicos[0].valor).toBe(450);
+  });
+
+  it('nada a acertar devolve o mesmo objeto', () => {
+    const o = orcamentoDe({ adultos: 20, servicos: [linha(500)] });
+    expect(cacheEmDia(o, [alan])).toBe(o);
   });
 });

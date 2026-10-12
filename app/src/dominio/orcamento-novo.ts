@@ -19,9 +19,11 @@ export function orcamentoNovo(
   adultos = 30,
   /**
    * Só o pedido do link passa: ele já sabe o tipo e o total com crianças. O
-   * orçamento feito na mão continua sugerindo cachê como sempre sugeriu.
+   * feito na mão nasce aniversário (ver `tipoEvento` abaixo), e o cachê sai da
+   * tabela de aniversário. Com `null` ele procurava uma tabela "sem tipo",
+   * que não existe mais, e nascia com o valor padrão em vez do da tabela.
    */
-  sugestao: { tipo: TipoDeEvento | null; convidados: number } = { tipo: null, convidados: adultos },
+  sugestao: { tipo: TipoDeEvento | null; convidados: number } = { tipo: 'aniversario', convidados: adultos },
 ): Orcamento {
   const agora = new Date().toISOString();
   return {

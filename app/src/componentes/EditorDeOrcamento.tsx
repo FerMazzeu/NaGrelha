@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { repositorio } from '../dados/supabase';
 import { agruparPorPreparo, EXTRAS_SUGERIDOS } from '../dominio/catalogo';
-import { calcular, faltaFaixa, limiteDaTabela, redistribuirCarnes, totalDeConvidados, valorSugerido } from '../dominio/calculo';
+import { cacheEmDia, calcular, faltaFaixa, limiteDaTabela, redistribuirCarnes, totalDeConvidados, valorSugerido } from '../dominio/calculo';
 import {
   ROTULO_PAPEL,
   ROTULO_SITUACAO,
@@ -43,13 +43,16 @@ export default function EditorDeOrcamento({
   aoRemover: () => void;
 }) {
   const [vendoProposta, setVendoProposta] = useState(false);
+  // Excluir em dois toques, como no cartão da lista: aqui o botão fica no
+  // alto da tela, ao lado do nome, e um toque errado levava o orçamento.
+  const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
   const [aba, setAba] = useState<
     'evento' | 'cardapio' | 'servicos' | 'equipe' | 'custos' | 'resultado'
   >('evento');
   const resultado = useMemo(() => calcular(orcamento), [orcamento]);
 
   const mudar = (parcial: Partial<Orcamento>) =>
-    aoMudar({ ...orcamento, ...parcial, atualizadoEm: new Date().toISOString() });
+    aoMudar(cacheEmDia({ ...orcamento, ...parcial, atualizadoEm: new Date().toISOString() }, servicosDisponiveis));
 
   const alternarItem = (id: string) =>
     mudar({
@@ -77,13 +80,28 @@ export default function EditorDeOrcamento({
             Voltar
           </button>
           <p className="min-w-0 flex-1 truncate font-semibold">{orcamento.cliente || 'Orçamento sem nome'}</p>
-          <button
-            type="button"
-            onClick={aoRemover}
-            className="botao botao-linha !min-h-10 !px-3 text-sm !text-fumaca hover:!border-brasa hover:!text-brasa-clara"
-          >
-            Excluir
-          </button>
+          {confirmandoExclusao ? (
+            <>
+              <button
+                type="button"
+                onClick={() => setConfirmandoExclusao(false)}
+                className="botao botao-linha !min-h-10 !px-3 text-sm"
+              >
+                Cancelar
+              </button>
+              <button type="button" onClick={aoRemover} className="botao botao-brasa !min-h-10 !px-3 text-sm">
+                Excluir de vez
+              </button>
+            </>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setConfirmandoExclusao(true)}
+              className="botao botao-linha !min-h-10 !px-3 text-sm !text-fumaca hover:!border-brasa hover:!text-brasa-clara"
+            >
+              Excluir
+            </button>
+          )}
         </div>
 
         <div className="area flex gap-1 overflow-x-auto pb-2">
@@ -842,40 +860,7 @@ function ServicosDoEvento({
 
   const catalogo = (id: string | null) => disponiveis.find((d) => d.id === id) ?? null;
 
-  /*
-    O cachê segue a tabela enquanto ninguém digitar por cima.
-
-    Antes o valor era calculado uma vez, na hora de adicionar o serviço, e
-    congelava ali. Com as tabelas novas do Alan indo até 300 convidados, isso
-    dava errado no uso normal: você põe o serviço com 30 pessoas, depois corrige
-    para 150, e o Alan continuava custando o preço de 30.
-
-    `valorManual` é o freio. Quem edita o campo de valor tira aquela linha do
-    automático, senão um desconto dado de propósito sumiria no próximo ajuste
-    de convidados.
-  */
-  const linhasDesatualizadas = orcamento.servicos.filter((linha) => {
-    if (linha.valorManual || linha.percentual > 0) return false;
-    const base = catalogo(linha.servicoId);
-    if (!base?.usaFaixa) return false;
-    return valorSugerido(base, convidados, orcamento.tipoEvento) !== linha.valor;
-  });
-
-  useEffect(() => {
-    if (!linhasDesatualizadas.length) return;
-    const novos = new Map(
-      linhasDesatualizadas.map((l) => [
-        l.id,
-        valorSugerido(catalogo(l.servicoId)!, convidados, orcamento.tipoEvento),
-      ]),
-    );
-    mudar({
-      servicos: orcamento.servicos.map((s) => (novos.has(s.id) ? { ...s, valor: novos.get(s.id)! } : s)),
-    });
-    // Roda quando o tamanho ou o tipo do evento muda. `mudar` e `orcamento`
-    // trocam de identidade a cada tecla, e entrariam em laço aqui.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [convidados, orcamento.tipoEvento, linhasDesatualizadas.length]);
+  // O cachê acompanha a tabela sozinho: ver `cacheEmDia`, chamado em `mudar`.
 
   /*
     Convidados fora da tabela.
@@ -1128,7 +1113,7 @@ function ServicosDoEvento({
                 }
               >
                 + {s.nome}
-                {s.usaFaixa && <span className="ml-1 text-dourado">{real(valorSugerido(s, convidados))}</span>}
+                {s.usaFaixa && <span className="ml-1 text-dourado">{real(valorSugerido(s, convidados, orcamento.tipoEvento))}</span>}
               </button>
             ))}
           </div>

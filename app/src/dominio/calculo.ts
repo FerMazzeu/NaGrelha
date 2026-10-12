@@ -110,6 +110,35 @@ export function limiteDaTabela(servico: Servico, tipo: TipoDeEvento | null) {
   return Math.max(...valem.map((f) => f.max as number));
 }
 
+/**
+ * O orçamento com o cachê de cada serviço em dia com a tabela.
+ *
+ * O cachê segue a tabela enquanto ninguém digitar por cima: você põe o
+ * serviço com 30 pessoas, depois corrige para 150, e o Alan tem que passar a
+ * custar o preço de 150. `valorManual` é o freio: quem digitou o valor tirou
+ * aquela linha do automático, senão um desconto dado de propósito sumiria no
+ * próximo ajuste de convidados.
+ *
+ * Antes isto rodava dentro da aba Serviços, e só quando ela estava aberta:
+ * mudar os convidados na aba Evento e mandar o PDF saía com o cachê velho.
+ * Agora roda em toda mudança do orçamento. Devolve o mesmo objeto quando não
+ * há nada a acertar.
+ */
+export function cacheEmDia(orcamento: Orcamento, disponiveis: Servico[]): Orcamento {
+  const convidados = totalDeConvidados(orcamento);
+  let mudou = false;
+  const servicos = orcamento.servicos.map((linha) => {
+    if (linha.valorManual || linha.percentual > 0) return linha;
+    const base = disponiveis.find((d) => d.id === linha.servicoId);
+    if (!base?.usaFaixa) return linha;
+    const valor = valorSugerido(base, convidados, orcamento.tipoEvento);
+    if (valor === linha.valor) return linha;
+    mudou = true;
+    return { ...linha, valor };
+  });
+  return mudou ? { ...orcamento, servicos } : orcamento;
+}
+
 export function calcular(orcamento: Orcamento): Resultado {
   const pessoas = pessoasEquivalentes(orcamento);
   const convidados = totalDeConvidados(orcamento);

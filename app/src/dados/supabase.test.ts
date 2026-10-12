@@ -11,6 +11,34 @@ type Linha = Record<string, unknown>;
 let tabelas: Record<string, Linha[]> = {};
 let falharInsertEm: string | null = null;
 let falharLeituraEm: string | null = null;
+/** Banco sem a migração 008, como produção antes de rodar o SQL. */
+let semFuncao = true;
+let relogio = 0;
+
+/*
+  A função `salvar_orcamento` do banco, de mentira: troca tudo de uma vez e
+  confere a versão, como a de verdade (supabase/sql/008).
+*/
+function salvarOrcamentoNoBanco(args: { p: Record<string, never>; p_versao: string | null }) {
+  if (semFuncao) return { data: null, error: { code: 'PGRST202', message: 'Could not find the function' } };
+  const { evento, itens, custos, servicos, faixas } = args.p as unknown as Record<string, Linha[]> & { evento: Linha };
+  const id = evento.id as string;
+  const atual = (tabelas.eventos ??= []).find((e) => e.id === id);
+  if (args.p_versao && !atual) return { data: null, error: { code: 'P0001', message: 'ORCAMENTO_EXCLUIDO' } };
+  if (args.p_versao && atual && atual.atualizado_em !== args.p_versao) {
+    return { data: null, error: { code: 'P0001', message: 'ORCAMENTO_ALTERADO' } };
+  }
+  const nova = `2026-10-12T15:00:${String(++relogio).padStart(2, '0')}+00:00`;
+  tabelas.eventos = [...tabelas.eventos.filter((e) => e.id !== id), { ...atual, ...evento, atualizado_em: nova }];
+  const trocar = (t: string, linhas: Linha[]) => {
+    tabelas[t] = [...(tabelas[t] ?? []).filter((l) => l.evento_id !== id), ...linhas.map((l) => ({ id: crypto.randomUUID(), ...l }))];
+  };
+  trocar('evento_itens', itens);
+  trocar('evento_custos', custos);
+  trocar('evento_servicos', servicos);
+  trocar('evento_faixas', faixas);
+  return { data: nova, error: null };
+}
 
 function consulta(tabela: string) {
   let filtro: ((l: Linha) => boolean) | null = null;
@@ -59,10 +87,14 @@ function consulta(tabela: string) {
 }
 
 vi.mock('../integrations/supabase/client', () => ({
-  supabase: { from: (t: string) => consulta(t), rpc: vi.fn(), auth: {} },
+  supabase: {
+    from: (t: string) => consulta(t),
+    rpc: vi.fn(async (nome: string, args: never) => (nome === 'salvar_orcamento' ? salvarOrcamentoNoBanco(args) : { data: null, error: null })),
+    auth: {},
+  },
 }));
 
-const { repositorioSupabase } = await import('./supabase');
+const { repositorioSupabase, ORCAMENTO_ALTERADO, ORCAMENTO_EXCLUIDO } = await import('./supabase');
 
 const evento = (id: string, cliente: string) => ({
   id,
@@ -105,6 +137,7 @@ beforeEach(() => {
   tabelas = {};
   falharInsertEm = null;
   falharLeituraEm = null;
+  semFuncao = true;
 });
 
 describe('ler os orçamentos', () => {
@@ -215,5 +248,92 @@ describe('gravar o orçamento', () => {
 
     expect(tabelas.evento_itens[0].item_id).toBeNull();
     expect(tabelas.evento_itens[0].selecionado).toBe(true);
+  });
+});
+
+describe('gravar numa transação só (migração 008)', () => {
+  beforeEach(() => {
+    semFuncao = false;
+  });
+
+  const comServicos = (o: Orcamento, valor: number) =>
+    ({
+      ...o,
+      servicos: [
+        { id: 's', servicoId: null, nome: 'Garçom', papel: 'equipe', pessoa: '', quantidade: 6, valor, percentual: 0, valorManual: true },
+      ],
+    }) as unknown as Orcamento;
+
+  it('grava tudo pela função, sem apagar tabela por tabela', async () => {
+    tabelas.eventos = [evento('a', 'Fulana')];
+    const [lido] = await repositorioSupabase.listarOrcamentos();
+
+    await repositorioSupabase.salvarOrcamento(comServicos({ ...lido, situacao: 'orcado' }, 220));
+
+    const [relido] = await repositorioSupabase.listarOrcamentos();
+    expect(relido.servicos.map((s) => s.valor)).toEqual([220]);
+  });
+
+  it('cópia velha de outro aparelho não grava por cima da nova', async () => {
+    tabelas.eventos = [evento('a', 'Fulana')];
+    // Os dois aparelhos abrem o mesmo orçamento.
+    const [noComputador] = await repositorioSupabase.listarOrcamentos();
+    const noCelular = structuredClone(noComputador);
+
+    // O computador põe a mão de obra e grava.
+    await repositorioSupabase.salvarOrcamento(comServicos(noComputador, 220));
+
+    // O celular, com a cópia de antes, muda a situação: seria gravar sem serviço.
+    // O módulo é um só nos dois "aparelhos" deste teste, então a versão que
+    // o celular tinha é posta de volta à mão.
+    tabelas.eventos[0] = { ...tabelas.eventos[0] };
+    const versaoDoCelular = '2026-10-01T12:00:00Z';
+    const banco = tabelas.eventos[0].atualizado_em;
+    expect(banco).not.toBe(versaoDoCelular);
+    const { supabase } = await import('../integrations/supabase/client');
+    const r = await supabase.rpc('salvar_orcamento', { p: { evento: { id: 'a' }, itens: [], custos: [], servicos: [], faixas: [] }, p_versao: versaoDoCelular } as never);
+    expect(r.error?.message).toBe('ORCAMENTO_ALTERADO');
+    expect(noCelular.servicos).toEqual([]);
+
+    expect(tabelas.evento_servicos.map((l) => l.valor)).toEqual([220]);
+  });
+
+  it('o aviso de conflito chega como texto que dá para mostrar', async () => {
+    tabelas.eventos = [evento('a', 'Fulana')];
+    const [lido] = await repositorioSupabase.listarOrcamentos();
+    // Outro aparelho grava por fora.
+    tabelas.eventos[0] = { ...tabelas.eventos[0], atualizado_em: '2026-10-12T16:00:00+00:00' };
+
+    await expect(repositorioSupabase.salvarOrcamento(lido)).rejects.toThrow(ORCAMENTO_ALTERADO);
+    expect(tabelas.evento_servicos ?? []).toEqual([]);
+  });
+
+  it('gravações seguidas do mesmo aparelho não se acusam de conflito', async () => {
+    tabelas.eventos = [evento('a', 'Fulana')];
+    const [lido] = await repositorioSupabase.listarOrcamentos();
+
+    await repositorioSupabase.salvarOrcamento(comServicos(lido, 200));
+    await repositorioSupabase.salvarOrcamento(comServicos(lido, 210));
+    await repositorioSupabase.salvarOrcamento(comServicos(lido, 220));
+
+    expect(tabelas.evento_servicos.map((l) => l.valor)).toEqual([220]);
+  });
+
+  it('orçamento excluído em outro aparelho não volta a existir', async () => {
+    tabelas.eventos = [evento('a', 'Fulana')];
+    const [lido] = await repositorioSupabase.listarOrcamentos();
+    tabelas.eventos = [];
+
+    await expect(repositorioSupabase.salvarOrcamento(lido)).rejects.toThrow(ORCAMENTO_EXCLUIDO);
+    expect(tabelas.eventos).toEqual([]);
+  });
+
+  it('orçamento novo, que o banco ainda não conhece, grava', async () => {
+    const o = { ...comServicos({ id: 'novo', itens: [], selecionados: [], custosExtras: [], faixas: [] } as unknown as Orcamento, 100) };
+    Object.assign(o, { cliente: 'X', contato: '', data: '', hora: '', local: '', observacoes: '', situacao: 'rascunho', tipoEvento: 'aniversario', adultos: 10, apetite: 'normal', duracaoHoras: 5, margem: 0, fatorCarvao: 0.5, precoCarvao: 5 });
+
+    await repositorioSupabase.salvarOrcamento(o);
+
+    expect(tabelas.eventos.map((e) => e.id)).toEqual(['novo']);
   });
 });

@@ -66,6 +66,18 @@ export function criarFila<T extends { id: string }>(
       return descarregar();
     },
 
+    /**
+     * Esquece o que estava para gravar deste id e espera a gravação no ar.
+     *
+     * Para excluir: sem isto, a edição que ainda esperava o relógio rodava
+     * depois da exclusão e recriava o orçamento inteiro.
+     */
+    async cancelar(id: string) {
+      pendentes.delete(id);
+      while (emCurso) await new Promise((ok) => setTimeout(ok, 50));
+      pendentes.delete(id);
+    },
+
     /** Só para teste e para o aviso de fechar a aba. */
     temPendente() {
       return pendentes.size > 0 || emCurso;
@@ -123,5 +135,5 @@ export function useGravacaoEnfileirada<T extends { id: string }>(
     return () => window.removeEventListener('beforeunload', aoSair);
   }, [fila]);
 
-  return { agendar: fila.agendar, agora: fila.agora, esvaziar: fila.esvaziar };
+  return { agendar: fila.agendar, agora: fila.agora, esvaziar: fila.esvaziar, cancelar: fila.cancelar };
 }

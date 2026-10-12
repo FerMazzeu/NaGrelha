@@ -55,6 +55,32 @@ describe('fila de gravação', () => {
     expect(banco.linhas).toEqual(['a:segunda']);
   });
 
+  it('cancelar tira da fila o que ia gravar, para excluir não ressuscitar', async () => {
+    const gravar = vi.fn(async () => {});
+    const fila = criarFila<Doc>(gravar, () => {}, 600);
+
+    fila.agendar({ id: 'a', texto: 'editado antes de excluir' });
+    await fila.cancelar('a');
+    await vi.advanceTimersByTimeAsync(1000);
+
+    expect(gravar).not.toHaveBeenCalled();
+  });
+
+  it('cancelar espera a gravação que já está no ar', async () => {
+    const banco = bancoFalso();
+    const fila = criarFila<Doc>((d) => banco.gravar(d), () => {}, 600);
+
+    fila.agendar({ id: 'a', texto: 'x' });
+    void fila.agora();
+    let terminou = false;
+    const cancelando = fila.cancelar('a').then(() => (terminou = true));
+    await vi.advanceTimersByTimeAsync(5);
+    expect(terminou).toBe(false);
+    await vi.advanceTimersByTimeAsync(100);
+    await cancelando;
+    expect(fila.temPendente()).toBe(false);
+  });
+
   it('digitar dez letras grava uma vez só, com a última versão', async () => {
     const gravar = vi.fn(async () => {});
     const fila = criarFila<Doc>(gravar, () => {}, 600);
