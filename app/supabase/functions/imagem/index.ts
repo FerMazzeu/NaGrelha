@@ -79,6 +79,20 @@ Deno.serve(async (req) => {
     const { data: usuario } = await supabase.auth.getUser();
     if (!usuario.user) return json({ error: 'nao_autorizado' }, 401);
 
+    // Logado nao basta: conta recem-criada ainda nao foi aprovada por um dono,
+    // e nao pode gastar credito de IA. A mesma funcao que as policies usam.
+    const { data: membro } = await supabase.rpc('e_membro');
+    if (membro !== true) return json({ error: 'sem_acesso' }, 403);
+
+    // Teto por pessoa: a RLS ja limita `mensagens` as conversas de quem chama,
+    // entao a contagem e so dela. Uso normal fica muito abaixo disto.
+    const { count: naUltimaHora } = await supabase
+      .from('mensagens')
+      .select('id', { count: 'exact', head: true })
+      .eq('papel', 'user')
+      .gte('criado_em', new Date(Date.now() - 60 * 60 * 1000).toISOString());
+    if ((naUltimaHora ?? 0) >= 150) return json({ error: 'limite', message: 'Muitas mensagens na última hora. Tente de novo daqui a pouco.' }, 429);
+
     const chave = Deno.env.get('OPENROUTER_API_KEY');
     if (!chave) {
       return json({ error: 'sem_chave', message: 'OPENROUTER_API_KEY nao foi configurada.' }, 503);
@@ -87,7 +101,9 @@ Deno.serve(async (req) => {
     const { conversaId, prompt, proporcao, modelo, qualidade, anexos, legenda, semRegistroDoPedido } =
       await req.json();
 
-    const lista: { nome?: string; mime?: string; dados?: string }[] = Array.isArray(anexos) ? anexos : [];
+    const lista: { nome?: string; mime?: string; dados?: string }[] = (Array.isArray(anexos) ? anexos.slice(0, 5) : []).filter(
+      (a: { dados?: unknown }) => typeof a?.dados !== 'string' || a.dados.length <= 20_000_000,
+    );
     const audios = lista.filter((a) => String(a?.mime ?? '').startsWith('audio/') && a?.dados);
     const escrito = typeof prompt === 'string' ? prompt.trim() : '';
 
@@ -95,10 +111,10 @@ Deno.serve(async (req) => {
     // usa isso no celular.
     if (!escrito && !audios.length) return json({ error: 'prompt_vazio' }, 400);
 
-    const usado =
-      typeof modelo === 'string' && modelo
-        ? modelo
-        : MODELOS_DE_IMAGEM[String(qualidade ?? '')] ?? MODELO_PADRAO;
+    // So os modelos desta lista. O `modelo` do corpo e ignorado de proposito:
+    // aceitar o que viesse do navegador deixava escolher o mais caro.
+    void modelo;
+    const usado = MODELOS_DE_IMAGEM[String(qualidade ?? '')] ?? MODELO_PADRAO;
 
     /*
       A conversa ate aqui, em texto.
@@ -276,7 +292,7 @@ Deno.serve(async (req) => {
     });
     if (erroUpload) {
       console.error('upload falhou', erroUpload.message);
-      return json({ error: 'upload', message: erroUpload.message }, 500);
+      return json({ error: 'upload', message: 'Não consegui guardar a imagem. Tente de novo.' }, 500);
     }
 
     // Bucket privado nao tem URL publica. O link assinado dura o suficiente
@@ -313,7 +329,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error('inesperado', String(e));
-    return json({ error: 'inesperado', message: String(e) }, 500);
+    return json({ error: 'inesperado', message: 'Erro interno. Tente de novo.' }, 500);
   }
 });
 

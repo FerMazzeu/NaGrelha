@@ -4,7 +4,7 @@ import { hojeIso, inicioDoControle, type Conta } from '../../dominio/financeiro'
 import type { Orcamento } from '../../dominio/tipos';
 import { mensagemDe } from '../../erro';
 import { dataCurta, inteiro, real } from '../../formato';
-import { lerArquivoDeCaixa, planejarImportacao, type CaixaLido } from '../../planilha-de-caixa';
+import { lerArquivoDeCaixa, pendenciasDaImportacao, planejarImportacao, type CaixaLido } from '../../planilha-de-caixa';
 import { CampoNumero } from '../Campos';
 import { Arquivo } from '../Icones';
 import type { DadosDoCaixa } from './Caixa';
@@ -114,8 +114,11 @@ export default function ImportarCaixa({
       for (let de = 0; de < lancamentos.length; de += 200) {
         await financeiro.criarLancamentos(lancamentos.slice(de, de + 200));
       }
+      etapa = 'pontos para conferir';
+      const pendencias = pendenciasDaImportacao(lido!, plano, nome, hoje);
+      await financeiro.criarPendencias(pendencias);
       setPronto(
-        `Importado: ${inteiro(novos.length)} eventos novos, ${inteiro(lancamentos.length)} lançamentos${usarSaldos && lido?.saldos ? ', saldos das contas atualizados' : ''}.`,
+        `${pendencias.length ? `${inteiro(pendencias.length)} pontos ficaram em "Para conferir". ` : ''}Importado: ${inteiro(novos.length)} eventos novos, ${inteiro(lancamentos.length)} lançamentos${usarSaldos && lido?.saldos ? ', saldos das contas atualizados' : ''}.`,
       );
       setLido(null);
       setNome('');

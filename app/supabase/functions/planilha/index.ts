@@ -108,6 +108,11 @@ Deno.serve(async (req) => {
     const { data: usuario } = await supabase.auth.getUser();
     if (!usuario.user) return json({ error: 'nao_autorizado' }, 401);
 
+    // Logado nao basta: conta recem-criada ainda nao foi aprovada por um dono,
+    // e nao pode gastar credito de IA. A mesma funcao que as policies usam.
+    const { data: membro } = await supabase.rpc('e_membro');
+    if (membro !== true) return json({ error: 'sem_acesso' }, 403);
+
     const chave = Deno.env.get('OPENROUTER_API_KEY');
     if (!chave) return json({ error: 'sem_chave', message: 'OPENROUTER_API_KEY nao configurada.' }, 503);
 
@@ -116,7 +121,7 @@ Deno.serve(async (req) => {
     // antigo nao manda o campo.
     const nota = tipo === 'nota';
     const lista: string[] = (Array.isArray(imagens) ? imagens : [])
-      .filter((i: unknown) => typeof i === 'string' && i.startsWith('data:image/'))
+      .filter((i: unknown) => typeof i === 'string' && i.startsWith('data:image/') && i.length <= 15_000_000)
       .slice(0, 4);
 
     if (!lista.length) return json({ error: 'sem_imagem', message: 'Nenhuma foto veio no pedido.' }, 400);
@@ -213,7 +218,7 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error('inesperado', String(e));
-    return json({ error: 'inesperado', message: String(e) }, 500);
+    return json({ error: 'inesperado', message: 'Erro interno. Tente de novo.' }, 500);
   }
 });
 

@@ -238,6 +238,20 @@ Deno.serve(async (req) => {
     const { data: usuario } = await supabase.auth.getUser();
     if (!usuario.user) return json({ error: 'nao_autorizado' }, 401);
 
+    // Logado nao basta: conta recem-criada ainda nao foi aprovada por um dono,
+    // e nao pode gastar credito de IA. A mesma funcao que as policies usam.
+    const { data: membro } = await supabase.rpc('e_membro');
+    if (membro !== true) return json({ error: 'sem_acesso' }, 403);
+
+    // Teto por pessoa: a RLS ja limita `mensagens` as conversas de quem chama,
+    // entao a contagem e so dela. Uso normal fica muito abaixo disto.
+    const { count: naUltimaHora } = await supabase
+      .from('mensagens')
+      .select('id', { count: 'exact', head: true })
+      .eq('papel', 'user')
+      .gte('criado_em', new Date(Date.now() - 60 * 60 * 1000).toISOString());
+    if ((naUltimaHora ?? 0) >= 150) return json({ error: 'limite', message: 'Muitas mensagens na última hora. Tente de novo daqui a pouco.' }, 429);
+
     const chave = Deno.env.get('OPENROUTER_API_KEY');
     if (!chave) {
       return json(
@@ -247,8 +261,13 @@ Deno.serve(async (req) => {
     }
 
     const { conversaId, mensagem, contexto, modelo, anexos, qualidade } = await req.json();
-    const texto = typeof mensagem === 'string' ? mensagem.trim() : '';
-    const lista: Anexo[] = Array.isArray(anexos) ? anexos.slice(0, 6) : [];
+    // Tetos de tamanho: a conta da OpenRouter e por token, e um corpo gigante
+    // e dinheiro jogado fora. 20 MB de base64 cabe foto e audio de celular.
+    const texto = typeof mensagem === 'string' ? mensagem.trim().slice(0, 20000) : '';
+    const lista: Anexo[] = (Array.isArray(anexos) ? anexos.slice(0, 6) : []).filter(
+      (a: Anexo) => typeof a?.dados !== 'string' || a.dados.length <= 20_000_000,
+    );
+    const contextoCurto = typeof contexto === 'string' ? contexto.slice(0, 30000) : '';
 
     // Mandar so um audio, sem escrever nada, tem que funcionar: e como a
     // pessoa usa isso no celular, no meio do evento.
@@ -280,7 +299,10 @@ Deno.serve(async (req) => {
       // dentro de uma linha de mensagem incharia a tabela sem necessidade.
       anexos: guardados.map(({ caminho, mime, nome }) => ({ caminho, mime, nome })),
     });
-    if (erroInsert) return json({ error: 'conversa_invalida', message: erroInsert.message }, 403);
+    if (erroInsert) {
+      console.error('insert da mensagem recusado', erroInsert.message);
+      return json({ error: 'conversa_invalida' }, 403);
+    }
 
     const { data: recentes } = await supabase
       .from('mensagens')
@@ -337,12 +359,15 @@ Deno.serve(async (req) => {
     if (escrito) partes.push({ type: 'text', text: escrito });
 
     const mensagens = [
-      { role: 'system', content: contexto ? `${INSTRUCOES}\n\n## Evento aberto\n${contexto}` : INSTRUCOES },
+      { role: 'system', content: contextoCurto ? `${INSTRUCOES}\n\n## Evento aberto\n${contextoCurto}` : INSTRUCOES },
       ...anteriores,
       { role: 'user', content: partes.length > 1 || guardados.length ? partes : escrito },
     ];
 
-    const usado = typeof modelo === 'string' && modelo ? modelo : MODELO_PADRAO;
+    // O modelo e decidido aqui, nunca pelo navegador: aceitar o que viesse no
+    // corpo deixava qualquer um escolher o modelo mais caro da OpenRouter.
+    void modelo;
+    const usado = MODELO_PADRAO;
 
     const resposta = await fetch(OPENROUTER_URL, {
       method: 'POST',
@@ -356,6 +381,7 @@ Deno.serve(async (req) => {
         messages: mensagens,
         stream: true,
         tools: [FERRAMENTA_IMAGEM],
+        max_tokens: 4000,
         // Sem isto nao existe conversa sobre custo de IA, so palpite.
         usage: { include: true },
       }),
@@ -364,7 +390,7 @@ Deno.serve(async (req) => {
     if (!resposta.ok || !resposta.body) {
       const cru = await resposta.text().catch(() => '');
       console.error('openrouter recusou', resposta.status, cru.slice(0, 600));
-      return json({ error: 'openrouter', message: cru.slice(0, 300) || `HTTP ${resposta.status}` }, 502);
+      return json({ error: 'openrouter', message: `O assistente não respondeu (HTTP ${resposta.status}). Tente de novo.` }, 502);
     }
 
     let completo = '';
@@ -539,7 +565,7 @@ Deno.serve(async (req) => {
           enviar({ tipo: 'fim', custo, truncado: truncou });
         } catch (e) {
           console.error('quebrou durante o stream', String(e));
-          enviar({ tipo: 'erro', mensagem: String(e) });
+          enviar({ tipo: 'erro', mensagem: 'A resposta foi interrompida. Tente de novo.' });
 
           // A resposta parcial vale mais que nada: sem isto, uma falha no meio
           // deixa a pergunta da pessoa sozinha na conversa.
@@ -567,6 +593,6 @@ Deno.serve(async (req) => {
     });
   } catch (e) {
     console.error('inesperado', String(e));
-    return json({ error: 'inesperado', message: String(e) }, 500);
+    return json({ error: 'inesperado', message: 'Erro interno. Tente de novo.' }, 500);
   }
 });

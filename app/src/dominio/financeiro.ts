@@ -102,6 +102,19 @@ export type Lancamento = {
   observacoes: string;
 };
 
+/** Algo que alguém precisa conferir e responder: "o que é BASF?". */
+export type Pendencia = {
+  id: string;
+  titulo: string;
+  detalhe: string;
+  eventoId: string | null;
+  valor: number | null;
+  situacao: 'aberta' | 'resolvida';
+  resposta: string;
+  resolvidaEm: string;
+  criadoEm: string;
+};
+
 /** Centavo: soma de dinheiro não pode carregar o 0,000000001 do ponto flutuante. */
 export const centavos = (v: number) => Math.round(v * 100) / 100;
 

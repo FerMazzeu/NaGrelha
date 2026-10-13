@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { eventoExterno } from './dominio/evento-externo';
 import { saldos, type Categoria, type Conta } from './dominio/financeiro';
-import { lerCaixa, planejarImportacao } from './planilha-de-caixa';
+import { lerCaixa, pendenciasDaImportacao, planejarImportacao } from './planilha-de-caixa';
 
 /*
   O formato da planilha "CONTROLE CAIXA" do Alan, célula por célula: título,
@@ -16,7 +16,7 @@ const ABA_2026: unknown[][] = [
   [null, 'EVENTO CONFIRMADO', 'EVENTO CONFIRMADO'],
   [null, null, 'NOMES', 'DATA EVENTO ', 'VALOR TOTAL ', 'VALOR DA ENTRADA ', 'VALOR RESTANTE ', 'STATUS', null, 'ALAN', 'ERICA'],
   [null, 1, 'FULANA', d('2026-03-07'), 5000, 0, 0, 'REALIZADO', null, 600, 500],
-  [null, 2, 'BELTRANO', d('2026-09-06'), 9000, 1000, { formula: 'E6-F6', result: 8000 }, null, null, 900, 700],
+  [null, 2, 'BELTRANO', d('2026-09-06'), 9000, 1000, { formula: 'E6-F6', result: 8000 }, null, null, 900, 700, 1],
   [null, 3, null, d('2026-09-12'), 0, 0, 0, null, null, 0, 0],
   [null, 4, null, d('2026-09-19'), 0, 0, 0, null, null, 900, 700],
   [null, 5, 'CICLANA', d('2026-12-12'), 6000, 1000, 0, null, null, 1000, 800],
@@ -131,5 +131,22 @@ describe('planejarImportacao', () => {
     const eventos = plano.map((p) => p.novo!);
     const outra = planejarImportacao(lido, eventos, jaLancados, banco, categorias, HOJE, HOJE);
     expect(outra.every((p) => !p.novo && !p.lancamentos.length)).toBe(true);
+  });
+});
+
+describe('pendências da importação', () => {
+  it('vira lista o que só o Alan sabe responder', () => {
+    const HOJE = '2026-10-13';
+    const banco: Conta = { id: 'banco', nome: 'Banco', tipo: 'banco', saldoInicial: 0, saldoInicialEm: HOJE, ativo: true };
+    const plano = planejarImportacao(lido, [], [], banco, [], HOJE, HOJE);
+    const titulos = pendenciasDaImportacao(lido, plano, 'caixa.xlsx', HOJE).map((p) => p.titulo);
+    expect(titulos).toEqual([
+      'Conferir os saldos das contas com o extrato',
+      'O que é "BASF" (R$\u00a01.000,00)?',
+      'O que marca a coluna L da aba "CAIXA 2026"?',
+      'BELTRANO (06/09/2026) pagou o restante?',
+      'Ficou de fora: tem valor mas não tem nome de cliente',
+      'Ficou de fora: SEM VALOR: sem valor nenhum',
+    ]);
   });
 });

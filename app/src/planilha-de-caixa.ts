@@ -45,6 +45,13 @@ export type CaixaLido = {
   /** O "DINHEIRO EM CAIXA" da aba mais recente que tem algum valor. */
   saldos: { banco: number; especie: number; investido: number; aba: string } | null;
   ignoradas: { onde: string; motivo: string }[];
+  /**
+   * Valor solto no resumo de baixo que não é saldo nem total: "BASF 13000".
+   * Ninguém além do Alan sabe o que é, então vira pendência para ele.
+   */
+  outros: { aba: string; rotulo: string; valor: number }[];
+  /** Coluna sem título com números dentro: alguma marcação que só ele conhece. */
+  colunasSemTitulo: { aba: string; coluna: string; linhas: number }[];
 };
 
 const semFormula = (v: unknown): unknown =>
@@ -59,9 +66,16 @@ function nomeDoSocio(cabecalho: string) {
 
 const COLUNAS_FIXAS = /^(nomes?|data evento|data|valor total|valor da entrada|entrada|valor restante|restante|status)$/;
 
-export function lerAbaDoCaixa(nome: string, linhas: unknown[][]): Omit<CaixaLido, 'saldos'> & { saldos: CaixaLido['saldos'] } {
+/** Rótulos do resumo de baixo que são conta da própria planilha, não dúvida. */
+const RESUMO_CONHECIDO = /^(total|(valor )?a receber|dinheiro|caixa$|adiantamento|banco|investido)/;
+
+const letraDaColuna = (j: number) => String.fromCharCode(65 + j);
+
+export function lerAbaDoCaixa(nome: string, linhas: unknown[][]): CaixaLido {
   const resultado: LinhaDoCaixa[] = [];
   const ignoradas: CaixaLido['ignoradas'] = [];
+  const outros: CaixaLido['outros'] = [];
+  const semTitulo = new Map<number, number>();
 
   // O cabeçalho é a linha com NOMES e VALOR TOTAL.
   let inicio = -1;
@@ -87,7 +101,17 @@ export function lerAbaDoCaixa(nome: string, linhas: unknown[][]): Omit<CaixaLido
       break;
     }
   }
-  if (inicio < 0) return { linhas: [], saldos: null, ignoradas: [{ onde: `aba "${nome}"`, motivo: 'sem a linha de títulos (NOMES, VALOR TOTAL)' }] };
+  if (inicio < 0) {
+    return {
+      linhas: [],
+      saldos: null,
+      ignoradas: [{ onde: `aba "${nome}"`, motivo: 'sem a linha de títulos (NOMES, VALOR TOTAL)' }],
+      outros: [],
+      colunasSemTitulo: [],
+    };
+  }
+  const titulos = (linhas[inicio] ?? []).map((c) => texto(c).trim());
+  const ultimaComTitulo = titulos.reduce((m, t, j) => (t ? j : m), 0);
 
   let saldos: CaixaLido['saldos'] = null;
   const saldo = { banco: 0, especie: 0, investido: 0 };
@@ -123,7 +147,21 @@ export function lerAbaDoCaixa(nome: string, linhas: unknown[][]): Omit<CaixaLido
 
     // O bloco do dinheiro também encerra, para aba sem a linha de total.
     if (/^(total|dinheiro em caixa|dinheiro utilizado)/.test(rotulo)) fimDosEventos = true;
-    if (fimDosEventos) continue;
+    if (fimDosEventos) {
+      const pos = brutas.findIndex((c) => texto(c).trim());
+      const valor = pos >= 0 ? brutas.slice(pos + 1).map(numero).find((n) => n !== null) : undefined;
+      if (rotulo && !RESUMO_CONHECIDO.test(rotulo) && valor && numero(brutas[pos]) === null) {
+        outros.push({ aba: nome, rotulo: texto(brutas[pos]).trim(), valor });
+      }
+      continue;
+    }
+
+    // Número em coluna sem título, entre as colunas do evento: conta para avisar.
+    brutas.forEach((c, j) => {
+      if (j > col.total && j <= ultimaComTitulo + 3 && !titulos[j] && (numero(c) ?? 0) !== 0) {
+        semTitulo.set(j, (semTitulo.get(j) ?? 0) + 1);
+      }
+    });
 
     const cliente = texto(brutas[col.nome]).trim();
     const data = lerData(brutas[col.data]) ?? '';
@@ -161,7 +199,13 @@ export function lerAbaDoCaixa(nome: string, linhas: unknown[][]): Omit<CaixaLido
   }
 
   if (achouSaldo && (saldo.banco || saldo.especie || saldo.investido)) saldos = { ...saldo, aba: nome };
-  return { linhas: resultado, saldos, ignoradas };
+  return {
+    linhas: resultado,
+    saldos,
+    ignoradas,
+    outros,
+    colunasSemTitulo: [...semTitulo].map(([j, n]) => ({ aba: nome, coluna: letraDaColuna(j), linhas: n })),
+  };
 }
 
 /** Todas as abas de caixa. O saldo vale o da aba de ano mais alto que tiver. */
@@ -175,6 +219,8 @@ export function lerCaixa(abas: { nome: string; linhas: unknown[][] }[]): CaixaLi
     linhas: lidas.flatMap((l) => l.linhas),
     saldos: comSaldo[0]?.saldos ?? null,
     ignoradas: lidas.flatMap((l) => l.ignoradas),
+    outros: lidas.flatMap((l) => l.outros),
+    colunasSemTitulo: lidas.flatMap((l) => l.colunasSemTitulo),
   };
 }
 
@@ -327,4 +373,81 @@ export function planejarImportacao(
 
     return { origem, existente, novo, lancamentos, avisos };
   });
+}
+
+// ------------------------------------------------------------ pendências ---
+
+export type PendenciaNova = { titulo: string; detalhe: string; eventoId: string | null; valor: number | null };
+
+/**
+ * O que a importação não sabe resolver sozinha, como lista para o Alan
+ * conferir e responder dentro do app. Antes isso ia por mensagem e se perdia.
+ */
+export function pendenciasDaImportacao(lido: CaixaLido, plano: ItemDoPlano[], nomeDoArquivo: string, hoje: string): PendenciaNova[] {
+  const r: PendenciaNova[] = [];
+  const quando = (d: string) => (d ? d.split('-').reverse().join('/') : 'sem data');
+  const real = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+  if (lido.saldos) {
+    r.push({
+      titulo: 'Conferir os saldos das contas com o extrato',
+      detalhe: `Vieram da aba "${lido.saldos.aba}" da planilha: banco ${real(lido.saldos.banco)}, espécie ${real(lido.saldos.especie)}, investido ${real(lido.saldos.investido)}. Se o extrato de hoje mostrar outro número, use "Conferir com o extrato" em Contas e importar.`,
+      eventoId: null,
+      valor: null,
+    });
+  }
+
+  for (const o of lido.outros) {
+    r.push({
+      titulo: `O que é "${o.rotulo}" (${real(o.valor)})?`,
+      detalhe: `Está no resumo da aba "${o.aba}" e é descontado do caixa na planilha, mas não é evento nem saldo. Se for uma conta a pagar ou um dinheiro reservado, lance em "A pagar" para o caixa livre ficar certo.`,
+      eventoId: null,
+      valor: o.valor,
+    });
+  }
+
+  for (const c of lido.colunasSemTitulo) {
+    r.push({
+      titulo: `O que marca a coluna ${c.coluna} da aba "${c.aba}"?`,
+      detalhe: `É uma coluna sem título com números em ${c.linhas} linhas. Ela não foi importada.`,
+      eventoId: null,
+      valor: null,
+    });
+  }
+
+  for (const p of plano) {
+    const eventoId = p.existente?.id ?? p.novo?.id ?? null;
+    const recebido = p.lancamentos.filter((l) => l.tipo === 'entrada').reduce((s, l) => s + l.valor, 0);
+    const falta = centavos(p.origem.total - recebido);
+    if (p.origem.data && p.origem.data < hoje && falta > 0.009 && p.origem.total > 0) {
+      r.push({
+        titulo: `${p.origem.cliente} (${quando(p.origem.data)}) pagou o restante?`,
+        detalhe: `O evento já aconteceu e a planilha mostra ${real(falta)} ainda a receber. Se foi pago, registre o recebimento em "A receber"; se não, é cobrança atrasada.`,
+        eventoId,
+        valor: falta,
+      });
+    }
+    if (p.origem.total <= 0) {
+      r.push({
+        titulo: `${p.origem.cliente} (${quando(p.origem.data)}) está sem valor total`,
+        detalhe: `A planilha tem entrada de ${real(p.origem.entrada)}, mas o valor do evento está zerado. Abra o evento e preencha o valor fechado.`,
+        eventoId,
+        valor: null,
+      });
+    }
+    for (const a of p.avisos.filter((x) => /valor é outro/.test(x))) {
+      r.push({ titulo: `${p.origem.cliente} (${quando(p.origem.data)}): ${a}`, detalhe: 'Confira qual dos dois valores vale.', eventoId, valor: null });
+    }
+  }
+
+  for (const x of lido.ignoradas) {
+    r.push({
+      titulo: `Ficou de fora: ${x.motivo}`,
+      detalhe: `Na planilha: ${x.onde}. Se era um evento de verdade, lance pelo app.`,
+      eventoId: null,
+      valor: null,
+    });
+  }
+
+  return r.map((p) => ({ ...p, detalhe: `${p.detalhe} (Importação de "${nomeDoArquivo}".)` }));
 }

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { financeiro } from '../../dados/financeiro';
-import { lancamentoNovo, type Categoria, type Conta, type Lancamento } from '../../dominio/financeiro';
+import { lancamentoNovo, type Categoria, type Conta, type Lancamento, type Pendencia } from '../../dominio/financeiro';
 import type { Escala, Membro, Orcamento } from '../../dominio/tipos';
 import { mensagemDe } from '../../erro';
 import AReceber from './AReceber';
@@ -8,6 +8,7 @@ import APagarTela from './APagar';
 import Ajustes from './Ajustes';
 import FormularioDeLancamento from './FormularioDeLancamento';
 import LivroCaixa from './LivroCaixa';
+import ParaConferir from './ParaConferir';
 import PorEvento from './PorEvento';
 import Resumo from './Resumo';
 
@@ -29,10 +30,11 @@ export type AcoesDoCaixa = {
   gravar: (ls: Lancamento[]) => Promise<void>;
 };
 
-type SubAba = 'resumo' | 'livro' | 'receber' | 'pagar' | 'eventos' | 'ajustes';
+type SubAba = 'resumo' | 'conferir' | 'livro' | 'receber' | 'pagar' | 'eventos' | 'ajustes';
 
 const SUB_ABAS: [SubAba, string][] = [
   ['resumo', 'Resumo'],
+  ['conferir', 'Para conferir'],
   ['livro', 'Livro caixa'],
   ['receber', 'A receber'],
   ['pagar', 'A pagar'],
@@ -70,6 +72,7 @@ export default function Caixa({
   const [categorias, setCategorias] = useState<Categoria[]>([]);
   const [lancamentos, setLancamentos] = useState<Lancamento[]>([]);
   const [escalas, setEscalas] = useState<Escala[]>([]);
+  const [pendencias, setPendencias] = useState<Pendencia[]>([]);
   const [carregando, setCarregando] = useState(true);
   const [erro, setErro] = useState('');
   const [editando, setEditando] = useState<Lancamento | null>(null);
@@ -78,12 +81,14 @@ export default function Caixa({
     setCarregando(true);
     setErro('');
     try {
-      const [c, cat, l, e] = await Promise.all([
+      const [c, cat, l, e, p] = await Promise.all([
         financeiro.lerContas(),
         financeiro.lerCategorias(),
         financeiro.lerLancamentos(),
         financeiro.lerEscalas(),
+        financeiro.lerPendencias(),
       ]);
+      setPendencias(p);
       setContas(c);
       setCategorias(cat);
       setLancamentos(l);
@@ -133,6 +138,7 @@ export default function Caixa({
   };
 
   const dados: DadosDoCaixa = { contas, categorias, lancamentos, escalas, orcamentos, membros };
+  const abertas = pendencias.filter((p) => p.situacao === 'aberta').length;
 
   return (
     <div className="area py-6">
@@ -163,6 +169,9 @@ export default function Caixa({
             }`}
           >
             {rotulo}
+            {id === 'conferir' && abertas > 0 && (
+              <span className="ml-1.5 rounded-full bg-dourado px-1.5 py-0.5 text-[0.65rem] font-bold text-carvao">{abertas}</span>
+            )}
           </button>
         ))}
       </div>
@@ -180,7 +189,33 @@ export default function Caixa({
         <p className="py-10 text-sm text-fumaca">Carregando o caixa...</p>
       ) : (
         <div className="mt-6">
-          {aba === 'resumo' && <Resumo dados={dados} acoes={acoes} irPara={trocarAba} />}
+          {aba === 'resumo' && (
+            <>
+              {abertas > 0 && (
+                <button
+                  type="button"
+                  onClick={() => trocarAba('conferir')}
+                  className="cartao mb-6 flex w-full items-center justify-between gap-3 border-dourado/50 p-4 text-left hover:border-dourado"
+                >
+                  <span>
+                    <span className="block font-semibold text-dourado">
+                      {abertas} {abertas === 1 ? 'ponto para conferir' : 'pontos para conferir'}
+                    </span>
+                    <span className="block text-sm text-fumaca">Dúvidas da importação que só quem conhece o caixa sabe responder.</span>
+                  </span>
+                  <span className="text-dourado">›</span>
+                </button>
+              )}
+              <Resumo dados={dados} acoes={acoes} irPara={trocarAba} />
+            </>
+          )}
+          {aba === 'conferir' && (
+            <ParaConferir
+              pendencias={pendencias}
+              eventos={orcamentos}
+              aoMudar={(p) => setPendencias((a) => a.map((x) => (x.id === p.id ? p : x)))}
+            />
+          )}
           {aba === 'livro' && <LivroCaixa dados={dados} acoes={acoes} />}
           {aba === 'receber' && <AReceber dados={dados} acoes={acoes} />}
           {aba === 'pagar' && <APagarTela dados={dados} acoes={acoes} />}

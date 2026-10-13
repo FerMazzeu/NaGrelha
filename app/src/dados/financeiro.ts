@@ -1,4 +1,4 @@
-import type { Categoria, Conta, Lancamento } from '../dominio/financeiro';
+import type { Categoria, Conta, Lancamento, Pendencia } from '../dominio/financeiro';
 import type { Escala } from '../dominio/tipos';
 import { supabase } from '../integrations/supabase/client';
 
@@ -205,6 +205,55 @@ export const financeiro = {
 
   async removerLancamento(id: string) {
     const { error } = await supabase.from('lancamentos').delete().eq('id', id);
+    if (error) throw error;
+  },
+
+  async lerPendencias(): Promise<Pendencia[]> {
+    type LinhaPendencia = {
+      id: string;
+      titulo: string;
+      detalhe: string;
+      evento_id: string | null;
+      valor: number | string | null;
+      situacao: Pendencia['situacao'];
+      resposta: string;
+      resolvida_em: string | null;
+      criado_em: string;
+    };
+    return (await tudo<LinhaPendencia>('pendencias_financeiras', 'criado_em')).map((p) => ({
+      id: p.id,
+      titulo: p.titulo,
+      detalhe: p.detalhe,
+      eventoId: p.evento_id,
+      valor: p.valor === null ? null : Number(p.valor),
+      situacao: p.situacao,
+      resposta: p.resposta ?? '',
+      resolvidaEm: p.resolvida_em ?? '',
+      criadoEm: p.criado_em,
+    }));
+  },
+
+  async criarPendencias(ps: { titulo: string; detalhe: string; eventoId: string | null; valor: number | null }[]) {
+    if (!ps.length) return;
+    const { error } = await supabase
+      .from('pendencias_financeiras')
+      .insert(ps.map((p) => ({ titulo: p.titulo, detalhe: p.detalhe, evento_id: p.eventoId, valor: p.valor })));
+    if (error) throw error;
+  },
+
+  /** Responde e fecha, ou reabre. Quem resolveu fica gravado. */
+  async salvarPendencia(p: Pendencia) {
+    const { data: sessao } = await supabase.auth.getUser();
+    const resolvida = p.situacao === 'resolvida';
+    const { error } = await supabase
+      .from('pendencias_financeiras')
+      .update({
+        resposta: p.resposta.trim(),
+        situacao: p.situacao,
+        resolvida_em: resolvida ? new Date().toISOString() : null,
+        resolvida_por: resolvida ? (sessao.user?.id ?? null) : null,
+      })
+      .eq('id', p.id);
     if (error) throw error;
   },
 

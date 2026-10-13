@@ -87,6 +87,11 @@ Deno.serve(async (req) => {
     const { data: usuario } = await supabase.auth.getUser();
     if (!usuario.user) return json({ error: 'nao_autorizado' }, 401);
 
+    // Logado nao basta: conta recem-criada ainda nao foi aprovada por um dono,
+    // e nao pode gastar credito de IA. A mesma funcao que as policies usam.
+    const { data: membro } = await supabase.rpc('e_membro');
+    if (membro !== true) return json({ error: 'sem_acesso' }, 403);
+
     const { conversaId } = await req.json();
     if (!conversaId) return json({ error: 'requisicao_invalida' }, 400);
 
@@ -157,11 +162,14 @@ Deno.serve(async (req) => {
     if (!titulo) return json({ error: 'titulo_vazio' }, 502);
 
     const { error } = await supabase.from('conversas').update({ titulo }).eq('id', conversaId);
-    if (error) return json({ error: 'nao_gravou', message: error.message }, 403);
+    if (error) {
+      console.error('titulo nao gravou', error.message);
+      return json({ error: 'nao_gravou' }, 403);
+    }
 
     return json({ titulo, custo: saida?.usage?.cost ?? null });
   } catch (e) {
     console.error('inesperado', String(e));
-    return json({ error: 'inesperado', message: String(e) }, 500);
+    return json({ error: 'inesperado', message: 'Erro interno. Tente de novo.' }, 500);
   }
 });
