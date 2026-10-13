@@ -323,7 +323,7 @@ export async function montarCatalogo(itens: Item[], pessoas: number) {
 }
 
 /** Dispara o download no navegador e limpa a URL temporária. */
-function baixar(blob: Blob, nome: string) {
+export function baixar(blob: Blob, nome: string) {
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;

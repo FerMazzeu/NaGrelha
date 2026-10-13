@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
-import { calcular, totalDeConvidados } from '../dominio/calculo';
+import { totalDeConvidados } from '../dominio/calculo';
+import { precoDoEvento } from '../dominio/evento-externo';
 import { COR_SITUACAO, ROTULO_SITUACAO, type Orcamento, type Situacao } from '../dominio/tipos';
 import { inteiro, real } from '../formato';
 
@@ -38,7 +39,7 @@ export default function Agenda({
   }, [orcamentos, filtro]);
 
   const confirmados = orcamentos.filter((o) => o.situacao === 'confirmado');
-  const receitaConfirmada = confirmados.reduce((s, o) => s + calcular(o).preco, 0);
+  const receitaConfirmada = confirmados.reduce((s, o) => s + precoDoEvento(o), 0);
 
   return (
     <div className="area py-6">
@@ -105,7 +106,7 @@ export default function Agenda({
 }
 
 function CartaoDeEvento({ orcamento, aoAbrir }: { orcamento: Orcamento; aoAbrir: (id: string) => void }) {
-  const r = calcular(orcamento);
+  const preco = precoDoEvento(orcamento);
   const pessoas = totalDeConvidados(orcamento);
 
   return (
@@ -133,7 +134,7 @@ function CartaoDeEvento({ orcamento, aoAbrir }: { orcamento: Orcamento; aoAbrir:
       </div>
 
       <div className="shrink-0 text-right">
-        <p className="font-display text-lg uppercase text-dourado">{real(r.preco)}</p>
+        <p className="font-display text-lg uppercase text-dourado">{real(preco)}</p>
         <span className={`mt-1 inline-block rounded-full border px-2 py-0.5 text-xs ${COR_SITUACAO[orcamento.situacao]}`}>
         {ROTULO_SITUACAO[orcamento.situacao]}
         </span>

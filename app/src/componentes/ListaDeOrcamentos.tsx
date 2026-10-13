@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { calcular, totalDeConvidados } from '../dominio/calculo';
+import { totalDeConvidados } from '../dominio/calculo';
+import { fechadoPorFora, precoDoEvento } from '../dominio/evento-externo';
 import { separarPorSituacao } from '../dominio/situacao';
 import { COR_SITUACAO, ROTULO_SITUACAO, type Orcamento, type Situacao } from '../dominio/tipos';
 import { dataCurta, inteiro, real } from '../formato';
 import { BotaoCopiar } from './Campos';
+import ImportarEventos from './ImportarEventos';
 
 export default function ListaDeOrcamentos({
   orcamentos,
@@ -11,14 +13,32 @@ export default function ListaDeOrcamentos({
   aoCriar,
   aoDuplicar,
   aoRemover,
+  aoLancarExterno,
+  aoSalvarExterno,
 }: {
   orcamentos: Orcamento[];
   aoAbrir: (id: string) => void;
   aoCriar: () => void;
   aoDuplicar: (id: string) => void;
   aoRemover: (id: string) => Promise<void>;
+  /** Cria um evento fechado por fora, em branco, e abre no editor. */
+  aoLancarExterno: () => void;
+  /** Grava um evento vindo da planilha. Erro sobe para a importação parar. */
+  aoSalvarExterno: (o: Orcamento) => Promise<void>;
 }) {
   const [mostrarLink, setMostrarLink] = useState(false);
+  const [importando, setImportando] = useState(false);
+
+  if (importando) {
+    return (
+      <ImportarEventos
+        existentes={orcamentos}
+        aoLancarUm={aoLancarExterno}
+        aoSalvar={aoSalvarExterno}
+        aoVoltar={() => setImportando(false)}
+      />
+    );
+  }
 
   return (
     <div className="area py-6">
@@ -39,6 +59,9 @@ export default function ListaDeOrcamentos({
             onClick={() => setMostrarLink((v) => !v)}
           >
             Link para o cliente
+          </button>
+          <button type="button" className="botao botao-linha" onClick={() => setImportando(true)}>
+            Evento de fora
           </button>
           <button type="button" className="botao botao-brasa" onClick={aoCriar}>
             Novo orçamento
@@ -179,7 +202,7 @@ function Cartao({
   // excluir orçamento não tem desfazer: leva o evento, os itens e os custos.
   const [confirmando, setConfirmando] = useState(false);
   const [excluindo, setExcluindo] = useState(false);
-  const r = calcular(orcamento);
+  const preco = precoDoEvento(orcamento);
   const hoje = new Date().toISOString().slice(0, 10);
   const jaPassou =
     !!orcamento.data &&
@@ -250,6 +273,11 @@ function Cartao({
           >
             {ROTULO_SITUACAO[orcamento.situacao]}
           </span>
+          {fechadoPorFora(orcamento) && (
+            <span className="shrink-0 rounded-full border border-borda px-2 py-0.5 text-[0.65rem] text-fumaca">
+              Fechado por fora
+            </span>
+          )}
         </div>
         <p className="mt-0.5 truncate text-sm text-fumaca">
           {dataCurta(orcamento.data)}
@@ -263,7 +291,7 @@ function Cartao({
           {orcamento.local ? ` · ${orcamento.local}` : ''}
         </p>
         <p className="mt-1.5 flex items-baseline gap-3">
-          <span className="font-display text-xl uppercase text-dourado">{real(r.preco)}</span>
+          <span className="font-display text-xl uppercase text-dourado">{real(preco)}</span>
           {/* Aparece junto com o destaque e diz em palavras o que o clique faz.
               No celular não tem mouse em cima: lá o toque já é a pergunta. */}
           <span className="text-xs font-semibold text-dourado opacity-0 transition-opacity duration-150 group-hover/abrir:opacity-100 group-focus-visible/abrir:opacity-100">

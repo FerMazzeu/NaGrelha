@@ -40,6 +40,8 @@ type LinhaEvento = {
   margem: number;
   fator_carvao: number;
   preco_carvao: number;
+  /** Só existe depois da migração 009; nulo é orçamento montado no app. */
+  valor_fechado?: number | string | null;
   criado_em: string;
   atualizado_em: string;
 };
@@ -200,6 +202,8 @@ function montar(
     margem: Number(evento.margem),
     fatorCarvao: Number(evento.fator_carvao),
     precoCarvao: Number(evento.preco_carvao),
+    // Numeric do Postgres chega como texto.
+    valorFechado: evento.valor_fechado === null || evento.valor_fechado === undefined ? null : Number(evento.valor_fechado),
     criadoEm: evento.criado_em,
     atualizadoEm: evento.atualizado_em,
   };
@@ -309,6 +313,7 @@ function linhasDoOrcamento(o: Orcamento): LinhasDoOrcamento {
       margem: num(o.margem),
       fator_carvao: num(o.fatorCarvao),
       preco_carvao: num(o.precoCarvao),
+      valor_fechado: o.valorFechado === null || o.valorFechado === undefined ? null : num(o.valorFechado),
     },
     itens: o.itens.map((i, ordem) => ({
       evento_id: o.id,

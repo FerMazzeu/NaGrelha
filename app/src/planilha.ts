@@ -86,7 +86,7 @@ function normalizarUnidade(bruto: string): Item['unidade'] | null {
 const NAO_E_ITEM =
   /^(total|observa|valor|descri|quantidade|convidado|adulto|crian[çc]a|data|cliente|frete|loca|gar[çc]|aux|cozinha|assistente|organiza|churrasqueiro|das|caixa|imposto)/i;
 
-const numero = (v: unknown): number | null => {
+export const numero = (v: unknown): number | null => {
   if (typeof v === 'number' && Number.isFinite(v)) return v;
   if (typeof v === 'string') {
     // "R$ 1.234,56" e "1,2" convivem no mesmo arquivo.
@@ -97,7 +97,7 @@ const numero = (v: unknown): number | null => {
   return null;
 };
 
-const texto = (v: unknown): string => {
+export const texto = (v: unknown): string => {
   if (v === null || v === undefined) return '';
   if (typeof v === 'object') {
     const o = v as { result?: unknown; richText?: { text: string }[]; text?: unknown };

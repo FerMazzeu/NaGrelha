@@ -298,6 +298,16 @@ export type Orcamento = {
   fatorCarvao: number;
   precoCarvao: number;
 
+  /**
+   * O preço combinado com o cliente, quando o evento foi fechado FORA do app:
+   * pela planilha antiga, pelo WhatsApp, antes de o app existir.
+   *
+   * Preenchido, ele manda no lugar da conta, porque não há cardápio nem
+   * serviço aqui dentro para calcular nada. Nulo (ou ausente) é o orçamento
+   * montado no app, cujo preço sai de `calcular`. Ver `precoDoEvento`.
+   */
+  valorFechado?: number | null;
+
   criadoEm: string;
   atualizadoEm: string;
 };

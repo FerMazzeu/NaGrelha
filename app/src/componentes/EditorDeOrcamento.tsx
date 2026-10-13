@@ -22,6 +22,7 @@ import { BotaoCopiar, Campo, CampoNumero, CampoTexto, Segmentado } from './Campo
 import Proposta from './Proposta';
 import { mensagemDe } from '../erro';
 import { sufixoPorPessoa } from '../dominio/unidade';
+import { fechadoPorFora } from '../dominio/evento-externo';
 
 const METAS_DE_CARNE = [300, 350, 400, 450, 500];
 
@@ -50,6 +51,12 @@ export default function EditorDeOrcamento({
     'evento' | 'cardapio' | 'servicos' | 'equipe' | 'custos' | 'resultado'
   >('evento');
   const resultado = useMemo(() => calcular(orcamento), [orcamento]);
+  /*
+    Evento fechado fora do app: não tem cardápio, serviço nem custo aqui
+    dentro, então essas abas só mostrariam zeros. Fica o que existe de
+    verdade: os dados do evento, o valor combinado e a equipe escalada.
+  */
+  const externo = fechadoPorFora(orcamento);
 
   const mudar = (parcial: Partial<Orcamento>) =>
     aoMudar(cacheEmDia({ ...orcamento, ...parcial, atualizadoEm: new Date().toISOString() }, servicosDisponiveis));
@@ -114,7 +121,9 @@ export default function EditorDeOrcamento({
               ['custos', 'Custos'],
               ['resultado', 'Resultado'],
             ] as const
-          ).map(([id, rotulo]) => (
+          )
+            .filter(([id]) => !externo || id === 'evento' || id === 'equipe')
+            .map(([id, rotulo]) => (
             <button
               key={id}
               type="button"
@@ -162,6 +171,19 @@ export default function EditorDeOrcamento({
               />
             </Campo>
 
+            {externo && (
+              <Campo
+                rotulo="Valor fechado"
+                dica="Fechado fora do app: este é o valor combinado com o cliente, e é ele que entra na agenda."
+              >
+                <CampoNumero
+                  valor={orcamento.valorFechado ?? 0}
+                  aoMudar={(v) => mudar({ valorFechado: v })}
+                  sufixo="R$"
+                />
+              </Campo>
+            )}
+
             <Campo
               rotulo="Tipo de evento"
               dica="Manda no cachê do Alan e da Érica: casamento e 15 anos pagam mais."
@@ -177,7 +199,7 @@ export default function EditorDeOrcamento({
             </Campo>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Campo rotulo="Adultos">
+              <Campo rotulo={externo ? 'Convidados' : 'Adultos'}>
                 <CampoNumero valor={orcamento.adultos} aoMudar={(v) => mudar({ adultos: v })} sufixo="pes." />
               </Campo>
               <Campo rotulo="Duração do evento">
@@ -189,6 +211,8 @@ export default function EditorDeOrcamento({
               </Campo>
             </div>
 
+            {!externo && (
+            <>
             {/*
               Crianças por faixa de idade, no lugar da regra fixa de metade.
               O percentual vale para as duas pontas: quanto a criança come e
@@ -258,6 +282,9 @@ export default function EditorDeOrcamento({
               />
             </Campo>
 
+            </>
+            )}
+
             <Campo rotulo="Observações" dica="Entra no fim da proposta enviada ao cliente.">
               <textarea
                 className="campo min-h-24 py-3"
@@ -267,11 +294,13 @@ export default function EditorDeOrcamento({
               />
             </Campo>
 
+            {!externo && (
             <p className="cartao p-4 text-sm text-fumaca">
               São <strong className="text-creme">{inteiro(totalDeConvidados(orcamento))} convidados</strong>, que pesam{' '}
               <strong className="text-creme">{decimal(resultado.pessoasEquivalentes)} pessoas</strong> na compra.
               A diferença é a fração de cada faixa de idade, mais o apetite.
             </p>
+            )}
           </div>
         )}
 
@@ -532,8 +561,11 @@ export default function EditorDeOrcamento({
         <div className="area flex items-center justify-between gap-4 py-3">
           <div className="min-w-0">
             <p className="rotulo whitespace-nowrap">Preço fechado</p>
-            <p className="metrica">{real(resultado.preco)}</p>
+            <p className="metrica">{real(externo ? (orcamento.valorFechado ?? 0) : resultado.preco)}</p>
           </div>
+          {externo ? (
+            <p className="text-right text-sm text-fumaca">Fechado fora do app, sem custo registrado</p>
+          ) : (
           <div className="text-right text-sm text-fumaca">
             <p>{real(resultado.precoPorPessoa)} por pessoa</p>
             <p>
@@ -543,6 +575,7 @@ export default function EditorDeOrcamento({
               </strong>
             </p>
           </div>
+          )}
         </div>
       </div>
     </div>

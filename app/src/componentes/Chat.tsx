@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { repositorio } from '../dados/supabase';
 import { ROTULO_CATEGORIA } from '../dominio/catalogo';
 import { calcular, totalDeConvidados } from '../dominio/calculo';
+import { fechadoPorFora } from '../dominio/evento-externo';
 import type { Conversa, Orcamento } from '../dominio/tipos';
 import { decimal, inteiro, quantidade, real } from '../formato';
 import { digitar } from '../digitacao';
@@ -44,6 +45,17 @@ const SUGESTOES = [
  */
 function contextoDoEvento(o: Orcamento | null) {
   if (!o) return '';
+  // Evento fechado fora do app não tem cardápio: a conta daria tudo zero, e o
+  // modelo responderia sobre um evento de graça.
+  if (fechadoPorFora(o)) {
+    return [
+      `Cliente: ${o.cliente || 'sem nome'}`,
+      `Data: ${o.data || 'sem data'}`,
+      `Local: ${o.local || 'nao informado'}`,
+      `Convidados: ${inteiro(o.adultos)}`,
+      `Evento fechado fora do app, sem cardapio registrado. Valor combinado: ${real(o.valorFechado ?? 0)}`,
+    ].join('\n');
+  }
   const r = calcular(o);
 
   const linhas = [

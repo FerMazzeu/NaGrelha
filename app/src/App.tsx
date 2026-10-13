@@ -12,6 +12,7 @@ import { repositorio } from './dados/supabase';
 import type { FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from './dominio/tipos';
 import { novoId } from './formato';
 import { orcamentoNovo } from './dominio/orcamento-novo';
+import { eventoExterno } from './dominio/evento-externo';
 import { useGravacaoEnfileirada } from './gravacao';
 import { supabase } from './integrations/supabase/client';
 import Moldura, { type Aba } from './componentes/Moldura';
@@ -267,6 +268,15 @@ export default function App() {
                 setAbertoId(o.id);
               }}
               aoRemover={remover}
+              aoLancarExterno={async () => {
+                const o = eventoExterno({ cliente: '', convidados: 0, valor: 0 });
+                await salvarJa(o);
+                setAbertoId(o.id);
+              }}
+              aoSalvarExterno={async (o) => {
+                await repositorio.salvarOrcamento(o);
+                lembrar(o);
+              }}
               aoDuplicar={async (id) => {
                 const base = orcamentos.find((o) => o.id === id);
                 if (!base) return;
