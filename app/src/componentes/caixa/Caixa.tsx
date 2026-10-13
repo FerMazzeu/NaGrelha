@@ -57,11 +57,14 @@ export default function Caixa({
   orcamentos,
   membros,
   aoSalvarEvento,
+  aoAbrirEvento,
 }: {
   orcamentos: Orcamento[];
   membros: Membro[];
   /** Para a importação criar os eventos que ainda não estão no app. */
   aoSalvarEvento: (o: Orcamento) => Promise<void>;
+  /** Abre o evento no editor; o Voltar de lá traz de volta para o caixa. */
+  aoAbrirEvento?: (id: string) => void;
 }) {
   const [aba, setAba] = useState<SubAba>(() => {
     try {
@@ -215,7 +218,10 @@ export default function Caixa({
           {aba === 'conferir' && (
             <ParaConferir
               pendencias={pendencias}
-              eventos={orcamentos}
+              dados={dados}
+              acoes={acoes}
+              aoAbrirEvento={aoAbrirEvento}
+              aoIrParaContas={() => trocarAba('ajustes')}
               aoMudar={(p) => setPendencias((a) => a.map((x) => (x.id === p.id ? p : x)))}
             />
           )}

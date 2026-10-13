@@ -304,6 +304,7 @@ export default function App() {
             <Caixa
               orcamentos={orcamentos}
               membros={membros}
+              aoAbrirEvento={setAbertoId}
               aoSalvarEvento={async (o) => {
                 await repositorio.salvarOrcamento(o);
                 lembrar(o);
