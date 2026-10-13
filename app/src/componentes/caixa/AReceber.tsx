@@ -84,7 +84,7 @@ export default function AReceber({ dados, acoes }: { dados: DadosDoCaixa; acoes:
   const total = (rs: Recebivel[]) => real(rs.reduce((s, r) => s + r.restante, 0));
 
   const lista = (rs: Recebivel[]) => (
-    <div className="mt-3 space-y-2">
+    <div className="mt-3 grid items-start gap-3 xl:grid-cols-2">
       {rs.map((r) => (
         <Cartao
           key={r.evento.id}
@@ -94,6 +94,11 @@ export default function AReceber({ dados, acoes }: { dados: DadosDoCaixa; acoes:
           aberto={aberto === r.evento.id}
           aoAlternar={() => setAberto(aberto === r.evento.id ? null : r.evento.id)}
           aoReceber={() => receber(r)}
+          aoMarcarRealizado={
+            r.evento.situacao === 'confirmado' && r.evento.data && r.evento.data < hoje
+              ? () => void acoes.mudarSituacao(r.evento, 'realizado').catch((e) => setErro(mensagemDe(e)))
+              : undefined
+          }
           aoMarcarAntigo={r.evento.data && r.evento.data < inicioDoControle && r.restante > 0 ? () => void acoes.gravar([pagoAntes(r)]).catch((e) => setErro(mensagemDe(e))) : undefined}
         />
       ))}
@@ -159,7 +164,7 @@ export default function AReceber({ dados, acoes }: { dados: DadosDoCaixa; acoes:
       {avulsas.length > 0 && (
         <section>
           <h2 className="titulo text-lg text-dourado">Outras entradas previstas</h2>
-          <div className="mt-3 space-y-2">
+          <div className="mt-3 grid items-start gap-3 xl:grid-cols-2">
             {avulsas.map((l) => (
               <div key={l.id} className="cartao flex items-center gap-3 p-3">
                 <button type="button" className="min-w-0 flex-1 text-left" onClick={() => acoes.abrir(l)}>
@@ -203,6 +208,7 @@ function Cartao({
   aoAlternar,
   aoReceber,
   aoMarcarAntigo,
+  aoMarcarRealizado,
 }: {
   r: Recebivel;
   dados: DadosDoCaixa;
@@ -211,6 +217,7 @@ function Cartao({
   aoAlternar: () => void;
   aoReceber: () => void;
   aoMarcarAntigo?: () => void;
+  aoMarcarRealizado?: () => void;
 }) {
   const pago = r.total > 0 ? Math.min(100, (r.recebido / r.total) * 100) : 0;
   const movimentos = dados.lancamentos
@@ -256,6 +263,13 @@ function Cartao({
             </button>
           )}
         </div>
+      )}
+
+      {/* Fora do bloco de cima: evento quitado também pode ter ficado como confirmado. */}
+      {aoMarcarRealizado && (
+        <button type="button" className="mt-2 text-sm font-semibold text-dourado underline-offset-4 hover:underline" onClick={aoMarcarRealizado}>
+          Já aconteceu: marcar como realizado
+        </button>
       )}
 
       {aberto && (

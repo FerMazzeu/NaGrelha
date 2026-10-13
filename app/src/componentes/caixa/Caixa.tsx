@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { financeiro } from '../../dados/financeiro';
 import { lancamentoNovo, type Categoria, type Conta, type Lancamento, type Pendencia } from '../../dominio/financeiro';
-import type { Escala, Membro, Orcamento } from '../../dominio/tipos';
+import type { Escala, Membro, Orcamento, Situacao } from '../../dominio/tipos';
 import { mensagemDe } from '../../erro';
 import AReceber from './AReceber';
 import APagarTela from './APagar';
@@ -28,6 +28,8 @@ export type AcoesDoCaixa = {
   novo: (tipo: Lancamento['tipo'], parcial?: Partial<Lancamento>) => void;
   /** Grava sem abrir formulário: o "marcar como pago" de um toque. */
   gravar: (ls: Lancamento[]) => Promise<void>;
+  /** Confirmado, realizado, perdido: o evento muda daqui, sem abrir o orçamento. */
+  mudarSituacao: (o: Orcamento, situacao: Situacao) => Promise<void>;
 };
 
 type SubAba = 'resumo' | 'conferir' | 'livro' | 'receber' | 'pagar' | 'eventos' | 'ajustes';
@@ -135,13 +137,14 @@ export default function Caixa({
     abrir: setEditando,
     novo: (tipo, parcial) => setEditando(lancamentoNovo(tipo, parcial)),
     gravar,
+    mudarSituacao: (o, situacao) => aoSalvarEvento({ ...o, situacao, atualizadoEm: new Date().toISOString() }),
   };
 
   const dados: DadosDoCaixa = { contas, categorias, lancamentos, escalas, orcamentos, membros };
   const abertas = pendencias.filter((p) => p.situacao === 'aberta').length;
 
   return (
-    <div className="area py-6">
+    <div className="area-larga py-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="titulo text-2xl">Caixa</h1>
@@ -219,7 +222,7 @@ export default function Caixa({
           {aba === 'livro' && <LivroCaixa dados={dados} acoes={acoes} />}
           {aba === 'receber' && <AReceber dados={dados} acoes={acoes} />}
           {aba === 'pagar' && <APagarTela dados={dados} acoes={acoes} />}
-          {aba === 'eventos' && <PorEvento dados={dados} />}
+          {aba === 'eventos' && <PorEvento dados={dados} acoes={acoes} />}
           {aba === 'ajustes' && (
             <Ajustes
               dados={dados}

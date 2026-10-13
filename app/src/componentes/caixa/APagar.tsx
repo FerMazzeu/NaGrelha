@@ -35,7 +35,7 @@ export default function APagarTela({ dados, acoes }: { dados: DadosDoCaixa; acoe
   const total = (ps: APagar[]) => real(ps.reduce((s, p) => s + p.valor, 0));
 
   const lista = (ps: APagar[]) => (
-    <div className="mt-3 space-y-2">
+    <div className="mt-3 grid items-start gap-3 xl:grid-cols-2">
       {ps.map((p) => {
         const chave = p.origem === 'cache' ? `c-${p.escala.id}` : p.lancamento.id;
         const titulo =
