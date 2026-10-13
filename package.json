@@ -4,6 +4,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
+    "predev": "npm run imagens",
     "dev": "vite",
     "build": "npm run imagens && tsc -p tsconfig.app.json && vite build",
     "preview": "vite preview",
