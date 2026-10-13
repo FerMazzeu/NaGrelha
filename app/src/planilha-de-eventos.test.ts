@@ -5,10 +5,12 @@ import {
   COLUNAS_DO_MODELO,
   jaExiste,
   lerArquivoDeEventos,
+  dadosDoNomeDoArquivo,
   lerCsv,
   lerData,
   lerHora,
   lerLinhasDeEventos,
+  lerOrcamentoDoAlan,
   SemCabecalho,
 } from './planilha-de-eventos';
 
@@ -33,7 +35,7 @@ describe('lerLinhasDeEventos', () => {
 
     expect(lidos.eventos).toHaveLength(2);
     expect(lidos.eventos[0]).toMatchObject({
-      linha: 4,
+      origem: 'linha 4',
       avisos: [],
       dados: { cliente: 'Fulana de Tal', valor: 4500, convidados: 60, data: '2025-03-15', situacao: 'realizado' },
     });
@@ -94,7 +96,7 @@ describe('lerLinhasDeEventos', () => {
       HOJE,
     );
     expect(eventos).toHaveLength(1);
-    expect(ignoradas).toEqual([{ linha: 3, texto: '50', motivo: 'sem nome de cliente' }]);
+    expect(ignoradas).toEqual([{ onde: 'linha 3', texto: '50', motivo: 'sem nome de cliente' }]);
   });
 
   it('lê o resultado de célula com fórmula', () => {
@@ -182,5 +184,77 @@ describe('lerArquivoDeEventos', () => {
       { cliente: 'Fulana', data: '2025-05-03', hora: '19:30', convidados: 80, valor: 7200, tipoEvento: 'casamento', situacao: 'realizado', local: 'Salão X' },
       { cliente: 'Beltrano', data: '2027-01-09', convidados: 30, valor: 3000, situacao: 'confirmado' },
     ]);
+  });
+});
+
+/*
+  O orçamento do Alan, um arquivo por evento. O formato é copiado do arquivo
+  real (células, colunas, blocos); nome, valores e equipe são inventados.
+*/
+const abaDoAlan = (adultos: number, total: number, comPagamento = false): unknown[][] => [
+  [],
+  [null, null, 'FULANA', 'FULANA', 'FULANA'],
+  [null, null, `ADULTOS ${adultos}`, adultos, { formula: 'F3/D3', result: total / adultos }, { formula: 'x', result: total }, null, comPagamento ? 'PAGAMENTO ' : null],
+  [null, null, 'CRIANÇAS 0', 0, 10, { formula: 'E4*D4' }],
+  [null, null, 'Valor total ', null, { formula: 'F3+F4', result: total + 0.000000000001 }, null, null, comPagamento ? 'DATA' : null, comPagamento ? 'VALOR ' : null],
+  [null, null, 'Data', new Date(Date.UTC(2027, 2, 6)), new Date(Date.UTC(2027, 2, 6)), null, null, null, comPagamento ? 1500 : null],
+  [null, 'Descrição', null, 'Quantidade.', 'Quantidade.'],
+  [null, 'CHURRASCO', 'CHURRASCO', 'CHURRASCO', 'CHURRASCO'],
+  [null, 'Chorizo', null, 5, 'kg', 50, { formula: 'D9*F9', result: 250 }],
+  [null, 'OBSERVAÇÕES IMPORTANTES:', 'OBSERVAÇÕES IMPORTANTES:', 'OBSERVAÇÕES IMPORTANTES:'],
+  [null, 'O EVENTO TEM DURAÇÃO DE 6 HORAS, CONTANDO A PARTIR DO INÍCIO.'],
+  [null, 'Churrasqueiro ', 'Fulano', 1, 'und', 100, { formula: 'D*F', result: 100 }],
+  [null, 'TOTAL SERVIÇO', null, null, null, null, { formula: 'x', result: 100 }],
+  [null, 'TOTAL INSUMOS', null, null, null, null, { formula: 'x', result: 250 }],
+  [null, 'TOTAL GERAL ', null, null, null, null, { formula: 'x', result: total }],
+];
+
+describe('orçamento do Alan como evento de fora', () => {
+  it('tira cliente, data, convidados, valor, duração, pagamento e custo', () => {
+    const lido = lerOrcamentoDoAlan([{ nome: 'ORÇAMENTO', linhas: abaDoAlan(80, 9876.5, true) }], 'x.xlsx', HOJE);
+    expect(lido).toMatchObject({
+      avisos: [],
+      dados: { cliente: 'FULANA', data: '2027-03-06', convidados: 80, valor: 9876.5, duracaoHoras: 6, situacao: 'confirmado' },
+    });
+    // O formato de moeda usa espaço que não quebra depois do "R$".
+    const notas = lido!.dados.observacoes!.replace(/\u00a0/g, ' ');
+    expect(notas).toContain('Já pago: R$ 1.500,00.');
+    expect(notas).toContain('insumos R$ 250,00, serviço R$ 100,00');
+  });
+
+  it('com várias versões no arquivo, vale a última aba e avisa', () => {
+    const lido = lerOrcamentoDoAlan(
+      [
+        { nome: 'ORÇAMENTO MODELO', linhas: abaDoAlan(80, 9000) },
+        { nome: 'LOCAÇÃO', linhas: [[null, 'COPO', 8, 'Dz', 8, 64]] },
+        { nome: 'ORÇAMENTO ATUALIZADO', linhas: abaDoAlan(90, 9900) },
+      ],
+      'x.xlsx',
+      HOJE,
+    );
+    expect(lido!.dados).toMatchObject({ convidados: 90, valor: 9900 });
+    expect(lido!.avisos).toEqual(['o arquivo tem 2 orçamentos; usei o último, da aba "ORÇAMENTO ATUALIZADO"']);
+  });
+
+  it('planilha que não é orçamento devolve nulo', () => {
+    expect(lerOrcamentoDoAlan([{ nome: 'x', linhas: [['a', 'b']] }], 'x.xlsx', HOJE)).toBeNull();
+  });
+
+  it('o nome do arquivo dá o cliente e a data quando a aba não diz', () => {
+    expect(dadosDoNomeDoArquivo('Na grelha com Alan Xavier FULANA 22.05.27.xlsx')).toEqual({
+      cliente: 'FULANA',
+      data: '2027-05-22',
+    });
+    expect(dadosDoNomeDoArquivo('Beltrano.xlsx')).toEqual({ cliente: 'Beltrano', data: null });
+  });
+
+  it('lido de um .xlsx de verdade, sem cabeçalho de lista, cai no formato do Alan', async () => {
+    const livro = new Workbook();
+    const aba = livro.addWorksheet('ORÇAMENTO');
+    abaDoAlan(50, 5000).forEach((l) => aba.addRow(l.map((c) => (c && typeof c === 'object' && !(c instanceof Date) && !('result' in c) ? null : c))));
+    const bytes = await livro.xlsx.writeBuffer();
+    const lidos = await lerArquivoDeEventos(new File([bytes as ArrayBuffer], 'Na grelha com Alan Xavier FULANA 06.03.27.xlsx'));
+    expect(lidos.eventos).toHaveLength(1);
+    expect(lidos.eventos[0].dados).toMatchObject({ cliente: 'FULANA', convidados: 50, valor: 5000, data: '2027-03-06' });
   });
 });

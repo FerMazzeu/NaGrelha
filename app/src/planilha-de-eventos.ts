@@ -71,8 +71,10 @@ function colunaDoTitulo(bruto: string): Coluna | null {
 }
 
 export type EventoLido = {
-  /** Linha na planilha, para quem confere achar no arquivo. */
-  linha: number;
+  /** Identifica o evento na conferência, mesmo com vários arquivos juntos. */
+  chave: string;
+  /** Onde ele estava, para quem confere achar no arquivo: "linha 4", "aba X". */
+  origem: string;
   dados: DadosDoEventoExterno;
   /** O que veio estranho e merece um olho antes de importar. */
   avisos: string[];
@@ -81,7 +83,7 @@ export type EventoLido = {
 export type EventosLidos = {
   eventos: EventoLido[];
   /** Linhas com conteúdo que não viraram evento, e por quê. */
-  ignoradas: { linha: number; texto: string; motivo: string }[];
+  ignoradas: { onde: string; texto: string; motivo: string }[];
   /** Colunas que o cabeçalho tinha. Ajuda a explicar o que faltou. */
   colunas: Coluna[];
 };
@@ -90,7 +92,7 @@ export type EventosLidos = {
 export class SemCabecalho extends Error {
   constructor() {
     super(
-      'Não achei o cabeçalho. A planilha precisa de uma linha com os títulos das colunas, pelo menos "Cliente" e "Valor" ou "Data".',
+      'Não reconheci a planilha. Ela precisa ser uma lista com uma linha de títulos (pelo menos "Cliente" e "Valor" ou "Data"), ou o orçamento do Alan com as linhas de adultos e de valor total.',
     );
   }
 }
@@ -216,7 +218,7 @@ export function lerLinhasDeEventos(linhas: unknown[][], hoje = new Date().toISOS
 
     const cliente = texto(celula(linha, 'cliente')).trim();
     if (!cliente) {
-      ignoradas.push({ linha: numeroDaLinha, texto: juntas.slice(0, 60), motivo: 'sem nome de cliente' });
+      ignoradas.push({ onde: `linha ${numeroDaLinha}`, texto: juntas.slice(0, 60), motivo: 'sem nome de cliente' });
       continue;
     }
     if (NAO_E_CLIENTE.test(cliente)) continue;
@@ -239,7 +241,8 @@ export function lerLinhasDeEventos(linhas: unknown[][], hoje = new Date().toISOS
     if (brutoSituacao.trim() && !situacao) avisos.push(`situação "${brutoSituacao.trim()}" não reconhecida`);
 
     eventos.push({
-      linha: numeroDaLinha,
+      chave: `linha-${numeroDaLinha}`,
+      origem: `linha ${numeroDaLinha}`,
       avisos,
       dados: {
         cliente,
@@ -309,18 +312,209 @@ export function lerCsv(conteudo: string): string[][] {
   return linhas;
 }
 
-/** Abre .xlsx ou .csv e lê a primeira aba que tiver cabeçalho de eventos. */
-export async function lerArquivoDeEventos(arquivo: File): Promise<EventosLidos> {
-  if (/\.csv$/i.test(arquivo.name) || arquivo.type === 'text/csv') {
-    return lerLinhasDeEventos(lerCsv(await arquivo.text()));
+/*
+  O orçamento do Alan, um arquivo por evento.
+
+  É o mesmo formato que `planilha.ts` lê para o catálogo: título com o nome do
+  cliente repetido nas células mescladas, depois "ADULTOS 100", "CRIANÇAS 0",
+  "Valor total" e "Data", e embaixo os insumos por preparo e a equipe. Para o
+  evento de fora só interessa o cabeçalho e os totais: o cardápio fica na
+  planilha, e o que entra no app é quem, quando, quantos e por quanto.
+
+  Um arquivo costuma ter mais de um orçamento, uma aba por versão
+  ("ORÇAMENTO MODELO", "ORÇAMENTO ATUALIZADO 14.06"). Vale a última, que é a
+  que o cliente fechou.
+*/
+
+export type Aba = { nome: string; linhas: unknown[][] };
+
+/** Os números de uma linha depois do rótulo, já sem fórmula. */
+const numerosDaLinha = (celulas: unknown[]) =>
+  celulas.map(semFormula).map(numero).filter((n): n is number => n !== null);
+
+/** "Na grelha com Alan Xavier ARIELLE 22.05.27.xlsx" → cliente e data. */
+export function dadosDoNomeDoArquivo(nome: string) {
+  const base = nome.replace(/\.[^.]+$/, '');
+  const achada = /(\d{1,2})[.\-_](\d{1,2})[.\-_](\d{2}|\d{4})\s*$/.exec(base);
+  const data = achada ? lerData(`${achada[1]}/${achada[2]}/${achada[3]}`) : null;
+  const cliente = (achada ? base.slice(0, achada.index) : base)
+    .replace(/^na\s*grelha(\s+com\s+alan\s+xavier)?/i, '')
+    .replace(/[-_]+/g, ' ')
+    .trim();
+  return { cliente, data };
+}
+
+type OrcamentoDaAba = {
+  cliente: string;
+  adultos: number | null;
+  criancas: number;
+  valor: number | null;
+  data: string | null;
+  duracao: number | null;
+  insumos: number | null;
+  servico: number | null;
+  pagamentos: { data: string | null; valor: number }[];
+};
+
+function lerAbaDoAlan(linhas: unknown[][]): OrcamentoDaAba | null {
+  const o: OrcamentoDaAba = {
+    cliente: '',
+    adultos: null,
+    criancas: 0,
+    valor: null,
+    data: null,
+    duracao: null,
+    insumos: null,
+    servico: null,
+    pagamentos: [],
+  };
+  let totalGeral: number | null = null;
+  // Coluna do VALOR no bloco "PAGAMENTO", quando a planilha tem um.
+  let colunaPagamento = -1;
+  let colunaDataPagamento = -1;
+  let dentroDoPagamento = false;
+
+  for (let i = 0; i < linhas.length; i++) {
+    const brutas = (linhas[i] ?? []).map(semFormula);
+    const celulas = brutas.map((c) => texto(c).trim());
+    const primeira = celulas.findIndex(Boolean);
+    if (primeira < 0) continue;
+    const rotulo = normalizar(celulas[primeira]);
+    const depois = brutas.slice(primeira + 1);
+
+    // Título: o nome do cliente repetido nas células mescladas, antes dos adultos.
+    if (!o.cliente && o.adultos === null) {
+      const cheias = celulas.filter(Boolean);
+      if (cheias.length >= 2 && cheias.every((c) => c === cheias[0]) && !/modelo\s+\d+\s*pessoas/i.test(cheias[0])) {
+        o.cliente = cheias[0];
+      }
+    }
+
+    if (o.adultos === null && /^adultos?\b/.test(rotulo)) {
+      o.adultos = numerosDaLinha([celulas[primeira].replace(/\D+/g, ' ').trim() || null, ...depois])[0] ?? null;
+    } else if (/^criancas?\b/.test(rotulo)) {
+      o.criancas = numerosDaLinha([celulas[primeira].replace(/\D+/g, ' ').trim() || null, ...depois])[0] ?? 0;
+    } else if (o.valor === null && /^valor total/.test(rotulo)) {
+      o.valor = numerosDaLinha(depois)[0] ?? null;
+    } else if (o.data === null && rotulo === 'data') {
+      o.data = depois.map(lerData).find(Boolean) ?? null;
+    } else if (/^total geral/.test(rotulo)) {
+      totalGeral = numerosDaLinha(depois).at(-1) ?? null;
+    } else if (/^total insumos/.test(rotulo)) {
+      o.insumos = numerosDaLinha(depois).at(-1) ?? null;
+    } else if (/^total servico/.test(rotulo)) {
+      o.servico = numerosDaLinha(depois).at(-1) ?? null;
+    }
+
+    const duracao = /dura[çc][ãa]o de (\d+)\s*hora/i.exec(celulas.join(' '));
+    if (duracao && o.duracao === null) o.duracao = Number(duracao[1]);
+
+    /*
+      O bloco de pagamento fica ao lado do cabeçalho, nas colunas H e I:
+      "PAGAMENTO", depois "DATA | VALOR", e uma linha por parcela recebida.
+      Termina na primeira linha sem valor nessa coluna.
+    */
+    const posPagamento = celulas.findIndex((c) => /^pagamento/i.test(c));
+    if (posPagamento >= 0) dentroDoPagamento = true;
+    if (dentroDoPagamento && colunaPagamento < 0) {
+      const posValor = celulas.findIndex((c, j) => j > 0 && /^valor\s*$/i.test(c));
+      if (posValor >= 0 && celulas.some((c) => /^data$/i.test(c))) {
+        colunaPagamento = posValor;
+        colunaDataPagamento = celulas.findIndex((c) => /^data$/i.test(c));
+        continue;
+      }
+    }
+    if (colunaPagamento >= 0) {
+      const valor = numero(brutas[colunaPagamento]);
+      if (valor === null || valor <= 0) {
+        colunaPagamento = -1;
+        dentroDoPagamento = false;
+      } else {
+        o.pagamentos.push({ data: lerData(brutas[colunaDataPagamento]), valor });
+      }
+    }
   }
 
+  o.valor = o.valor ?? totalGeral;
+  if (o.adultos === null || o.valor === null) return null;
+  return o;
+}
+
+/**
+ * Lê o arquivo de orçamento do Alan como um evento fechado.
+ *
+ * Devolve nulo quando nenhuma aba tem a cara do orçamento dele: aí o arquivo é
+ * outra coisa, e quem chamou explica o formato esperado.
+ */
+export function lerOrcamentoDoAlan(
+  abas: Aba[],
+  nomeDoArquivo: string,
+  hoje = new Date().toISOString().slice(0, 10),
+): EventoLido | null {
+  const lidas = abas
+    .map((aba) => ({ aba, o: lerAbaDoAlan(aba.linhas) }))
+    .filter((x): x is { aba: Aba; o: OrcamentoDaAba } => x.o !== null);
+  if (!lidas.length) return null;
+
+  const { aba, o } = lidas[lidas.length - 1];
+  const doNome = dadosDoNomeDoArquivo(nomeDoArquivo);
+  const avisos: string[] = [];
+
+  const cliente = o.cliente || doNome.cliente;
+  const data = o.data ?? doNome.data ?? '';
+  if (!data) avisos.push('sem data');
+  if (o.valor === null || o.valor <= 0) avisos.push('sem valor');
+  if (lidas.length > 1) {
+    avisos.push(`o arquivo tem ${lidas.length} orçamentos; usei o último, da aba "${aba.nome.trim()}"`);
+  }
+
+  /*
+    O que a planilha sabe e o app ainda não guarda em campo próprio vai para as
+    observações: o que já foi pago e o custo. É o que o financeiro vai pedir,
+    e assim não se perde até lá.
+  */
+  const notas = [`Importado da planilha "${nomeDoArquivo}", aba "${aba.nome.trim()}".`];
+  if (o.pagamentos.length) {
+    const pago = o.pagamentos.reduce((s, p) => s + p.valor, 0);
+    // Parcela por parcela só quando acrescenta algo: uma só e sem data é o total.
+    const detalhar = o.pagamentos.length > 1 || o.pagamentos.some((p) => p.data);
+    const parcelas = o.pagamentos
+      .map((p) => `${moeda(p.valor)}${p.data ? ` em ${p.data.split('-').reverse().join('/')}` : ''}`)
+      .join(', ');
+    notas.push(`Já pago: ${moeda(pago)}${detalhar ? ` (${parcelas})` : ''}.`);
+  }
+  if (o.insumos !== null || o.servico !== null) {
+    notas.push(
+      `Custo na planilha: insumos ${moeda(o.insumos ?? 0)}, serviço ${moeda(o.servico ?? 0)}.`,
+    );
+  }
+
+  return {
+    chave: 'orcamento',
+    origem: `aba "${aba.nome.trim()}"`,
+    avisos,
+    dados: {
+      cliente,
+      data,
+      convidados: Math.round((o.adultos ?? 0) + o.criancas),
+      // A soma do Excel vem com resto de ponto flutuante: 15489.400000000001.
+      valor: Math.max(0, Math.round((o.valor ?? 0) * 100) / 100),
+      situacao: situacaoPelaData(data, hoje),
+      tipoEvento: 'aniversario',
+      observacoes: notas.join('\n'),
+      duracaoHoras: o.duracao ?? undefined,
+    },
+  };
+}
+
+const moeda = (v: number) => new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
+
+/** Todas as abas do .xlsx como matriz de valores crus. */
+async function abasDoArquivo(arquivo: File): Promise<Aba[]> {
   const { default: ExcelJS } = await import('exceljs');
   const livro = new ExcelJS.Workbook();
   await livro.xlsx.load(await arquivo.arrayBuffer());
-
-  let melhor: EventosLidos | null = null;
-  for (const aba of livro.worksheets) {
+  return livro.worksheets.map((aba) => {
     const linhas: unknown[][] = [];
     aba.eachRow({ includeEmpty: true }, (linha, n) => {
       const valores: unknown[] = [];
@@ -329,15 +523,44 @@ export async function lerArquivoDeEventos(arquivo: File): Promise<EventosLidos> 
       });
       linhas[n - 1] = valores;
     });
+    return { nome: aba.name, linhas };
+  });
+}
+
+/**
+ * Abre .xlsx ou .csv nos dois formatos que existem: a lista de eventos (uma
+ * linha por evento) e o orçamento do Alan (um arquivo por evento).
+ *
+ * As chaves saem prefixadas com o nome do arquivo, para dar para subir vários
+ * de uma vez sem dois eventos com a mesma chave.
+ */
+export async function lerArquivoDeEventos(arquivo: File): Promise<EventosLidos> {
+  const comArquivo = (lidos: EventosLidos): EventosLidos => ({
+    ...lidos,
+    eventos: lidos.eventos.map((e) => ({ ...e, chave: `${arquivo.name}#${e.chave}` })),
+  });
+
+  if (/\.csv$/i.test(arquivo.name) || arquivo.type === 'text/csv') {
+    return comArquivo(lerLinhasDeEventos(lerCsv(await arquivo.text())));
+  }
+
+  const abas = await abasDoArquivo(arquivo);
+
+  let melhor: EventosLidos | null = null;
+  for (const aba of abas) {
     try {
-      const lida = lerLinhasDeEventos(linhas);
+      const lida = lerLinhasDeEventos(aba.linhas);
       if (!melhor || lida.eventos.length > melhor.eventos.length) melhor = lida;
     } catch (e) {
       if (!(e instanceof SemCabecalho)) throw e;
     }
   }
-  if (!melhor) throw new SemCabecalho();
-  return melhor;
+  if (melhor) return comArquivo(melhor);
+
+  const orcamento = lerOrcamentoDoAlan(abas, arquivo.name);
+  if (orcamento) return comArquivo({ eventos: [orcamento], ignoradas: [], colunas: [] });
+
+  throw new SemCabecalho();
 }
 
 /** A planilha em branco, com as colunas que a leitura reconhece de primeira. */

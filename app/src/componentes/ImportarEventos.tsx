@@ -32,40 +32,55 @@ export default function ImportarEventos({
 }) {
   const [lidos, setLidos] = useState<EventosLidos | null>(null);
   const [nomeDoArquivo, setNomeDoArquivo] = useState('');
-  const [marcados, setMarcados] = useState<Set<number>>(new Set());
+  const [marcados, setMarcados] = useState<Set<string>>(new Set());
   const [lendo, setLendo] = useState(false);
   const [importando, setImportando] = useState<{ feitos: number; total: number } | null>(null);
   const [erro, setErro] = useState('');
   const [pronto, setPronto] = useState('');
 
   const repetidos = useMemo(
-    () => new Set((lidos?.eventos ?? []).filter((e) => jaExiste(e.dados, existentes)).map((e) => e.linha)),
+    () => new Set((lidos?.eventos ?? []).filter((e) => jaExiste(e.dados, existentes)).map((e) => e.chave)),
     [lidos, existentes],
   );
 
-  const abrir = async (arquivo: File | undefined) => {
-    if (!arquivo) return;
+  /*
+    Vários arquivos de uma vez, porque o orçamento do Alan é um arquivo por
+    evento. Arquivo que não dá para ler não derruba os outros: vira uma linha
+    em "ficaram de fora", com o motivo.
+  */
+  const abrir = async (arquivos: File[]) => {
+    if (!arquivos.length) return;
     setErro('');
     setPronto('');
     setLendo(true);
-    setNomeDoArquivo(arquivo.name);
-    try {
-      const lida = await lerArquivoDeEventos(arquivo);
-      setLidos(lida);
-      // Repetido começa desmarcado: subir a mesma planilha duas vezes não
-      // pode dobrar a agenda.
-      setMarcados(
-        new Set(lida.eventos.filter((e) => !jaExiste(e.dados, existentes)).map((e) => e.linha)),
-      );
-    } catch (e) {
-      setLidos(null);
-      setErro(mensagemDe(e));
-    } finally {
-      setLendo(false);
+    setNomeDoArquivo(
+      arquivos.length === 1 ? arquivos[0].name : `${inteiro(arquivos.length)} arquivos`,
+    );
+    const juntos: EventosLidos = { eventos: [], ignoradas: [], colunas: [] };
+    for (const arquivo of arquivos) {
+      try {
+        const lida = await lerArquivoDeEventos(arquivo);
+        const prefixo = arquivos.length > 1 ? `${arquivo.name}, ` : '';
+        juntos.eventos.push(...lida.eventos.map((e) => ({ ...e, origem: `${prefixo}${e.origem}` })));
+        juntos.ignoradas.push(...lida.ignoradas.map((i) => ({ ...i, onde: `${prefixo}${i.onde}` })));
+      } catch (e) {
+        juntos.ignoradas.push({ onde: arquivo.name, texto: '', motivo: mensagemDe(e) });
+      }
     }
+    setLendo(false);
+
+    if (!juntos.eventos.length && arquivos.length === 1) {
+      setLidos(null);
+      setErro(juntos.ignoradas[0]?.motivo ?? 'Nenhum evento no arquivo.');
+      return;
+    }
+    setLidos(juntos);
+    // Repetido começa desmarcado: subir a mesma planilha duas vezes não
+    // pode dobrar a agenda.
+    setMarcados(new Set(juntos.eventos.filter((e) => !jaExiste(e.dados, existentes)).map((e) => e.chave)));
   };
 
-  const escolhidos = (lidos?.eventos ?? []).filter((e) => marcados.has(e.linha));
+  const escolhidos = (lidos?.eventos ?? []).filter((e) => marcados.has(e.chave));
   const somaEscolhida = escolhidos.reduce((s, e) => s + e.dados.valor, 0);
 
   const importar = async () => {
@@ -91,7 +106,7 @@ export default function ImportarEventos({
       // continuar de onde parou.
       setMarcados((atual) => {
         const resto = new Set(atual);
-        escolhidos.slice(0, feitos).forEach((x) => resto.delete(x.linha));
+        escolhidos.slice(0, feitos).forEach((x) => resto.delete(x.chave));
         return resto;
       });
     } finally {
@@ -99,11 +114,11 @@ export default function ImportarEventos({
     }
   };
 
-  const alternar = (linha: number) =>
+  const alternar = (chave: string) =>
     setMarcados((atual) => {
       const novo = new Set(atual);
-      if (novo.has(linha)) novo.delete(linha);
-      else novo.add(linha);
+      if (novo.has(chave)) novo.delete(chave);
+      else novo.add(chave);
       return novo;
     });
 
@@ -152,16 +167,17 @@ export default function ImportarEventos({
             <span className="min-w-0 flex-1">
               <span className="block font-semibold">{lendo ? 'Lendo a planilha...' : 'Subir planilha de eventos'}</span>
               <span className="block truncate text-sm text-fumaca">
-                {nomeDoArquivo || 'Excel (.xlsx) ou .csv, uma linha por evento'}
+                {nomeDoArquivo || 'A lista de eventos, ou os orçamentos do Alan (dá para escolher vários)'}
               </span>
             </span>
             <input
               type="file"
               accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              multiple
               className="hidden"
               disabled={lendo}
               onChange={(e) => {
-                void abrir(e.target.files?.[0]);
+                void abrir([...(e.target.files ?? [])]);
                 e.target.value = '';
               }}
             />
@@ -169,7 +185,12 @@ export default function ImportarEventos({
 
           <div className="cartao p-4 text-sm text-fumaca sm:col-span-2">
             <p>
-              A planilha precisa de uma linha de títulos. Os nomes podem variar ("Valor" ou "Total", "Pessoas" ou
+              Dá para subir o <strong className="text-creme">orçamento do Alan</strong> do jeito que ele manda, um
+              arquivo por evento: o app tira o cliente, a data, os convidados e o valor total, e usa a última aba
+              quando o arquivo tem mais de uma versão.
+            </p>
+            <p className="mt-2">
+              Ou uma lista, uma linha por evento, com uma linha de títulos. Os nomes podem variar ("Valor" ou "Total", "Pessoas" ou
               "Convidados"), mas precisa ter <strong className="text-creme">Cliente</strong> e mais{' '}
               <strong className="text-creme">Valor</strong> ou <strong className="text-creme">Data</strong>. Sem
               situação, evento com data passada entra como realizado, e o resto como confirmado.
@@ -221,24 +242,24 @@ export default function ImportarEventos({
           </div>
 
           {!lidos.eventos.length && (
-            <p className="cartao p-4 text-sm text-fumaca">Achei o cabeçalho, mas nenhuma linha com cliente embaixo dele.</p>
+            <p className="cartao p-4 text-sm text-fumaca">Nenhum evento nos arquivos. O motivo de cada um está logo abaixo.</p>
           )}
 
           <div className="space-y-2">
             {lidos.eventos.map((e) => {
-              const repetido = repetidos.has(e.linha);
+              const repetido = repetidos.has(e.chave);
               const d = e.dados;
               return (
                 <label
-                  key={e.linha}
-                  className={`cartao flex cursor-pointer items-start gap-3 p-3 ${marcados.has(e.linha) ? '' : 'opacity-60'}`}
+                  key={e.chave}
+                  className={`cartao flex cursor-pointer items-start gap-3 p-3 ${marcados.has(e.chave) ? '' : 'opacity-60'}`}
                 >
                   <input
                     type="checkbox"
                     className="mt-0.5 h-5 w-5 shrink-0 accent-[#c4261d]"
-                    checked={marcados.has(e.linha)}
+                    checked={marcados.has(e.chave)}
                     disabled={!!importando}
-                    onChange={() => alternar(e.linha)}
+                    onChange={() => alternar(e.chave)}
                   />
                   <span className="min-w-0 flex-1">
                     <span className="flex flex-wrap items-baseline justify-between gap-x-3">
@@ -251,12 +272,14 @@ export default function ImportarEventos({
                       {ROTULO_SITUACAO[d.situacao ?? 'confirmado']} · {ROTULO_TIPO_EVENTO[d.tipoEvento ?? 'aniversario']}
                       {d.local ? ` · ${d.local}` : ''}
                     </span>
-                    {(repetido || e.avisos.length > 0) && (
-                      <span className="mt-1 block text-xs text-brasa-clara">
-                        {[repetido ? 'já existe no app' : '', ...e.avisos].filter(Boolean).join(' · ')}
-                        <span className="text-fumaca"> · linha {inteiro(e.linha)}</span>
-                      </span>
-                    )}
+                    <span className="mt-1 block text-xs">
+                      {(repetido || e.avisos.length > 0) && (
+                        <span className="text-brasa-clara">
+                          {[repetido ? 'já existe no app' : '', ...e.avisos].filter(Boolean).join(' · ')} ·{' '}
+                        </span>
+                      )}
+                      <span className="text-fumaca">{e.origem}</span>
+                    </span>
                   </span>
                 </label>
               );
@@ -266,12 +289,13 @@ export default function ImportarEventos({
           {lidos.ignoradas.length > 0 && (
             <details className="cartao p-4 text-sm">
               <summary className="cursor-pointer text-fumaca">
-                {inteiro(lidos.ignoradas.length)} {lidos.ignoradas.length === 1 ? 'linha ficou' : 'linhas ficaram'} de fora
+                {inteiro(lidos.ignoradas.length)} {lidos.ignoradas.length === 1 ? 'item ficou' : 'itens ficaram'} de fora
               </summary>
               <ul className="mt-2 space-y-1 text-fumaca">
                 {lidos.ignoradas.map((l) => (
-                  <li key={l.linha}>
-                    Linha {inteiro(l.linha)}: "{l.texto}", {l.motivo}
+                  <li key={`${l.onde}-${l.texto}`}>
+                    {l.onde}: {l.texto ? `"${l.texto}", ` : ''}
+                    {l.motivo}
                   </li>
                 ))}
               </ul>

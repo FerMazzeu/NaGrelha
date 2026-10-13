@@ -43,6 +43,7 @@ export type DadosDoEventoExterno = {
   valor: number;
   tipoEvento?: TipoDeEvento;
   situacao?: Situacao;
+  duracaoHoras?: number;
 };
 
 /**
@@ -76,7 +77,7 @@ export function eventoExterno(d: DadosDoEventoExterno): Orcamento {
     adultos: Math.max(0, Math.round(d.convidados)),
     faixas: [],
     apetite: 'normal',
-    duracaoHoras: 5,
+    duracaoHoras: d.duracaoHoras ?? 5,
     itens: [],
     selecionados: [],
     servicos: [],
