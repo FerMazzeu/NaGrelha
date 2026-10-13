@@ -3,6 +3,7 @@ import { CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
 import type { Categoria, Item } from '../dominio/tipos';
 import { casaBusca, inteiro, real } from '../formato';
 import type { Comparacao } from '../importacao';
+import { CampoDinheiro } from './Campos';
 import { Lupa } from './Icones';
 import { custoDe, rotuloUnidade, sufixoPorPessoa } from '../dominio/unidade';
 
@@ -315,7 +316,17 @@ function Linha({
       {aberta && (
         <div className="border-t border-borda/60 p-3">
           <div className="flex items-end gap-2">
-            {numero(r.preco, (v) => aoMudar({ ...r, preco: v }), 'Preço', `/${unidadeCurta}`, r.preco <= 0)}
+            <div className="min-w-0 flex-1">
+              <label className="block text-[0.6rem] uppercase tracking-wide text-fumaca">Preço</label>
+              <CampoDinheiro
+                valor={r.preco}
+                aoMudar={(v) => aoMudar({ ...r, preco: v })}
+                sufixo={`/${unidadeCurta}`}
+                destaque={r.preco <= 0}
+                className={r.preco <= 0 ? 'text-base font-semibold' : '!min-h-9 text-sm'}
+                aria-label={`Preço de ${r.nome}`}
+              />
+            </div>
             {numero(
               r.porPessoa,
               (v) => aoMudar({ ...r, porPessoa: v }),

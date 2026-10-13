@@ -5,7 +5,7 @@ import type { Orcamento } from '../../dominio/tipos';
 import { mensagemDe } from '../../erro';
 import { dataCurta, inteiro, real } from '../../formato';
 import { lerArquivoDeCaixa, pendenciasDaImportacao, planejarImportacao, type CaixaLido } from '../../planilha-de-caixa';
-import { CampoNumero } from '../Campos';
+import { CampoDinheiro } from '../Campos';
 import { Arquivo } from '../Icones';
 import type { DadosDoCaixa } from './Caixa';
 
@@ -199,10 +199,10 @@ export default function ImportarCaixa({
                     .map((c) => (
                       <label key={c.id} className="block text-sm">
                         <span className="rotulo mb-1.5">{c.nome}</span>
-                        <CampoNumero
+                        <CampoDinheiro permitirNegativo
                           valor={saldosFinais[c.id] ?? 0}
                           aoMudar={(v) => setSaldosEditados((a) => ({ ...a, [c.id]: v }))}
-                          sufixo="R$"
+                         
                         />
                       </label>
                     ))}

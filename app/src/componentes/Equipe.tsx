@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Membro, Perfil } from '../dominio/tipos';
 import Acessos from './Acessos';
 import { casaBusca, real } from '../formato';
-import { Campo, CampoNumero, CampoTexto } from './Campos';
+import { Campo, CampoDinheiro, CampoTexto } from './Campos';
 import { Lupa } from './Icones';
 
 const FUNCOES = ['Churrasqueiro', 'Auxiliar de grelha', 'Confeitaria', 'Ambientação', 'Organização', 'Garçom'];
@@ -88,10 +88,10 @@ export default function Equipe({
               </datalist>
             </Campo>
             <Campo rotulo="Cachê padrão" dica="Entra como sugestão ao escalar num evento.">
-              <CampoNumero
+              <CampoDinheiro
                 valor={novo.cachePadrao}
                 aoMudar={(v) => setNovo({ ...novo, cachePadrao: v })}
-                sufixo="R$"
+               
               />
             </Campo>
           </div>
@@ -220,10 +220,10 @@ function LinhaDeMembro({
           <CampoTexto valor={rascunho.funcao} aoMudar={(v) => setRascunho({ ...rascunho, funcao: v })} />
         </Campo>
         <Campo rotulo="Cachê padrão">
-          <CampoNumero
+          <CampoDinheiro
             valor={rascunho.cachePadrao}
             aoMudar={(v) => setRascunho({ ...rascunho, cachePadrao: v })}
-            sufixo="R$"
+           
           />
         </Campo>
       </div>

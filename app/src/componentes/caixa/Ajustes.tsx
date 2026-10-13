@@ -13,7 +13,7 @@ import {
 import type { Orcamento } from '../../dominio/tipos';
 import { mensagemDe } from '../../erro';
 import { real } from '../../formato';
-import { Campo, CampoNumero, CampoTexto } from '../Campos';
+import { Campo, CampoDinheiro, CampoTexto } from '../Campos';
 import type { AcoesDoCaixa, DadosDoCaixa } from './Caixa';
 import ImportarCaixa from './ImportarCaixa';
 
@@ -155,7 +155,7 @@ function EditorDeConta({
           </select>
         </Campo>
         <Campo rotulo="Saldo inicial">
-          <CampoNumero valor={c.saldoInicial} aoMudar={(saldoInicial) => setC({ ...c, saldoInicial })} sufixo="R$" />
+          <CampoDinheiro permitirNegativo valor={c.saldoInicial} aoMudar={(saldoInicial) => setC({ ...c, saldoInicial })} />
         </Campo>
         <Campo rotulo="Em">
           <input type="date" className="campo" value={c.saldoInicialEm} onChange={(e) => setC({ ...c, saldoInicialEm: e.target.value || hojeIso() })} />
@@ -171,7 +171,7 @@ function EditorDeConta({
         {conferindo ? (
           <>
             <div className="w-40">
-              <CampoNumero valor={noBanco} aoMudar={setNoBanco} sufixo="R$" aria-label="Saldo no extrato" />
+              <CampoDinheiro permitirNegativo valor={noBanco} aoMudar={setNoBanco} aria-label="Saldo no extrato" />
             </div>
             <button type="button" className="botao botao-linha !min-h-9 !px-3 text-sm" onClick={ajustar}>
               Lançar a diferença
@@ -236,7 +236,7 @@ function NovaConta({ aoCriar }: { aoCriar: (c: Conta) => void }) {
           </select>
         </Campo>
         <Campo rotulo="Saldo hoje">
-          <CampoNumero valor={saldo} aoMudar={setSaldo} sufixo="R$" />
+          <CampoDinheiro permitirNegativo valor={saldo} aoMudar={setSaldo} />
         </Campo>
       </div>
       {erro && <p className="mt-2 text-sm text-brasa-clara">{erro}</p>}

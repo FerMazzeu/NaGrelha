@@ -6,7 +6,7 @@ import TabelasDeCache from './TabelasDeCache';
 import { agruparPorPreparo, CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
 import type { Categoria, FaixaEtaria, Item, Servico } from '../dominio/tipos';
 import { casaBusca, decimal, inteiro, real } from '../formato';
-import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
+import { Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
 import {
   custoDe,
@@ -218,7 +218,7 @@ export default function Catalogo({
               />
             </Campo>
             <Campo rotulo="Preço">
-              <CampoNumero
+              <CampoDinheiro
                 valor={novo.preco}
                 aoMudar={(v) => setNovo({ ...novo, preco: v })}
                 sufixo={sufixoPreco(novo.unidade)}
@@ -408,7 +408,7 @@ function LinhaDeItem({
             />
           </Campo>
           <Campo rotulo="Preço">
-            <CampoNumero
+            <CampoDinheiro
               valor={rascunho.preco}
               aoMudar={(v) => setRascunho({ ...rascunho, preco: v })}
               sufixo={sufixoPreco(rascunho.unidade)}

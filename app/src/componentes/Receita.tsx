@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import { CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
 import type { Categoria, Item } from '../dominio/tipos';
 import { casaBusca, quantidade as formatarQuantidade, real } from '../formato';
-import { Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
+import { Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
 import { custoDe, rotuloUnidade, sufixoPorPessoa } from '../dominio/unidade';
 
@@ -275,10 +275,10 @@ function NovoIngrediente({
           />
         </Campo>
         <Campo rotulo="Preço">
-          <CampoNumero
+          <CampoDinheiro
             valor={rascunho.preco}
             aoMudar={(v) => setRascunho({ ...rascunho, preco: v })}
-            sufixo="R$"
+           
             aria-label={`Preço do ingrediente novo em ${preparo}`}
           />
         </Campo>

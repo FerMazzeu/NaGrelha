@@ -11,7 +11,7 @@ import {
 import type { Membro, Orcamento } from '../../dominio/tipos';
 import { mensagemDe } from '../../erro';
 import { dataCurta, normalizar, real } from '../../formato';
-import { Campo, CampoNumero, CampoTexto, Segmentado } from '../Campos';
+import { Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado } from '../Campos';
 
 /** Os sócios não estão na equipe, mas recebem pró-labore: entram na lista de nomes. */
 const SOCIOS = ['Alan', 'Érica'];
@@ -145,7 +145,7 @@ export default function FormularioDeLancamento({
 
           <div className="grid gap-4 sm:grid-cols-2">
             <Campo rotulo="Valor">
-              <CampoNumero valor={l.valor} aoMudar={(valor) => mudar({ valor })} sufixo="R$" autoFocus={novo} />
+              <CampoDinheiro valor={l.valor} aoMudar={(valor) => mudar({ valor })} autoFocus={novo} />
             </Campo>
             {!transferencia && (
               <Campo rotulo="Categoria">

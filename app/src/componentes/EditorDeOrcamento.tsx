@@ -18,7 +18,7 @@ import {
 import { decimal, inteiro, novoId, quantidade, real } from '../formato';
 import { exportarOrcamento } from '../excel';
 import { textoDaEscala, textoDaListaDeCompras, textoDaProposta } from '../texto';
-import { BotaoCopiar, Campo, CampoNumero, CampoTexto, Segmentado } from './Campos';
+import { BotaoCopiar, Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import Proposta from './Proposta';
 import { mensagemDe } from '../erro';
 import { sufixoPorPessoa } from '../dominio/unidade';
@@ -176,10 +176,10 @@ export default function EditorDeOrcamento({
                 rotulo="Valor fechado"
                 dica="Fechado fora do app: este é o valor combinado com o cliente, e é ele que entra na agenda."
               >
-                <CampoNumero
+                <CampoDinheiro
                   valor={orcamento.valorFechado ?? 0}
                   aoMudar={(v) => mudar({ valorFechado: v })}
-                  sufixo="R$"
+                 
                 />
               </Campo>
             )}
@@ -422,7 +422,7 @@ export default function EditorDeOrcamento({
                 <CampoNumero valor={orcamento.fatorCarvao} aoMudar={(v) => mudar({ fatorCarvao: v })} sufixo="kg" />
               </Campo>
               <Campo rotulo="Preço do carvão">
-                <CampoNumero valor={orcamento.precoCarvao} aoMudar={(v) => mudar({ precoCarvao: v })} sufixo="R$/kg" />
+                <CampoDinheiro valor={orcamento.precoCarvao} aoMudar={(v) => mudar({ precoCarvao: v })} sufixo="/kg" />
               </Campo>
             </div>
 
@@ -462,8 +462,8 @@ export default function EditorDeOrcamento({
                       placeholder="Descrição"
                       aria-label="Descrição do custo"
                     />
-                    <div className="w-28 shrink-0">
-                      <CampoNumero
+                    <div className="w-36 shrink-0">
+                      <CampoDinheiro
                         valor={custo.valor}
                         aoMudar={(v) =>
                           mudar({
@@ -472,7 +472,7 @@ export default function EditorDeOrcamento({
                             ),
                           })
                         }
-                        sufixo="R$"
+                       
                         aria-label="Valor do custo"
                       />
                     </div>
@@ -837,14 +837,14 @@ function EscalaDoEvento({ eventoId, membros }: { eventoId: string; membros: Memb
                 <p className="truncate text-sm text-fumaca">{e.funcao || membro?.funcao || 'sem função'}</p>
               </div>
 
-              <div className="w-24 shrink-0">
-                <CampoNumero
+              <div className="w-36 shrink-0">
+                <CampoDinheiro
                   valor={e.cache}
                   aoMudar={async (v) => {
                     setEscalas((atuais) => atuais.map((x) => (x.id === e.id ? { ...x, cache: v } : x)));
                     await repositorio.atualizarEscala({ ...e, cache: v });
                   }}
-                  sufixo="R$"
+                 
                   aria-label={`Cachê de ${membro?.nome ?? 'membro'}`}
                 />
               </div>
@@ -1015,7 +1015,8 @@ function ServicosDoEvento({
               </div>
             ) : (
               <>
-              <div className={`mt-2 grid gap-2 ${passouDaTabela(s.id) ? 'grid-cols-2' : 'grid-cols-3'}`}>
+              {/* Quem, quantidade e valor; o valor leva mais espaço, porque "R$ 2.300,00" não cabe num terço da linha do celular. */}
+              <div className={`mt-2 grid gap-2 ${passouDaTabela(s.id) ? 'grid-cols-2' : 'grid-cols-[1.2fr_0.7fr_1.6fr]'}`}>
                 <Campo rotulo="Quem">
                   <CampoTexto
                     valor={s.pessoa}
@@ -1035,10 +1036,10 @@ function ServicosDoEvento({
                     em dois campos ao mesmo tempo. */}
                 {!passouDaTabela(s.id) && (
                   <Campo rotulo="Valor">
-                    <CampoNumero
+                    <CampoDinheiro
                       valor={s.valor}
                       aoMudar={(v) => atualizar(s.id, { valor: v, valorManual: true })}
-                      sufixo="R$"
+                     
                       aria-label={`Valor de ${s.nome}`}
                     />
                   </Campo>
@@ -1075,10 +1076,10 @@ function ServicosDoEvento({
                   </p>
                   <div className="mt-2 flex flex-wrap items-center gap-2">
                     <div className="w-40">
-                      <CampoNumero
+                      <CampoDinheiro
                         valor={s.valor}
                         aoMudar={(v) => atualizar(s.id, { valor: v, valorManual: true })}
-                        sufixo="R$"
+                       
                         aria-label={`Cachê de ${s.nome} para ${convidados} convidados`}
                       />
                     </div>

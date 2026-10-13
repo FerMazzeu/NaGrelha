@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { ROTULO_TIPO_EVENTO, type FaixaDeCache, type Servico, type TipoDeEvento } from '../dominio/tipos';
 import { inteiro, real } from '../formato';
-import { Campo, CampoNumero } from './Campos';
+import { Campo, CampoDinheiro, CampoNumero } from './Campos';
 import { Fechar } from './Icones';
 
 const TIPOS: TipoDeEvento[] = ['aniversario', 'casamento'];
@@ -133,10 +133,10 @@ function Tabela({ servico, aoSalvar }: { servico: Servico; aoSalvar: (s: Servico
               />
             </Campo>
             <Campo rotulo="Cachê">
-              <CampoNumero
+              <CampoDinheiro
                 valor={f.valor}
                 aoMudar={(v) => mudarFaixa(i, { valor: v })}
-                sufixo="R$"
+               
                 aria-label={`Cachê da faixa de ${servico.nome}`}
               />
             </Campo>
