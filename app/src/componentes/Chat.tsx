@@ -72,7 +72,9 @@ function contextoDoEvento(o: Orcamento | null) {
     `Servicos: ${r.servicos.map((x) => `${x.servico.nome} ${real(x.total)}`).join(', ') || 'nenhum'}`,
     `Custo de servico: ${real(r.custoServicos)}`,
     `Custo total: ${real(r.custoTotal)}`,
-    `Preco fechado: ${real(r.preco)} (${real(r.precoPorPessoa)} por pessoa)`,
+    `Preco fechado: ${real(r.preco)}`,
+    ...r.cobranca.map((c) => `  - ${c.rotulo}: ${inteiro(c.quantidade)} x ${real(c.unitario)} = ${real(c.total)}`),
+    `Custo por adulto: ${real(r.custoPorAdulto)} (preco por adulto ${real(r.precoPorAdulto)})`,
     '',
     'Itens do evento:',
   ];

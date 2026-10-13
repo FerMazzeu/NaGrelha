@@ -256,6 +256,7 @@ export function calcular(orcamento: Orcamento): Resultado {
     lucro,
     margemSobrePreco: preco > 0 ? (lucro / preco) * 100 : 0,
     precoPorAdulto,
+    custoPorAdulto: pessoas > 0 ? (custoTotal / pessoas) * FATOR_APETITE[orcamento.apetite] : 0,
     cobranca,
   };
 }

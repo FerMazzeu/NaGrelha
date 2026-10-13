@@ -345,5 +345,11 @@ export type Resultado = {
   margemSobrePreco: number;
   /** Quanto um adulto paga. Criança paga a fração da faixa dela. */
   precoPorAdulto: number;
+  /**
+   * Quanto um adulto custa, na mesma conta do preço: criança pesa a fração da
+   * faixa. É o número que se compara com `precoPorAdulto`; o custo dividido
+   * por cabeça não serve, porque a criança que não paga também entra nele.
+   */
+  custoPorAdulto: number;
   cobranca: { rotulo: string; quantidade: number; unitario: number; total: number }[];
 };

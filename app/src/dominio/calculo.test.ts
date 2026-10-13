@@ -466,3 +466,20 @@ describe('cachê em dia com os convidados', () => {
     expect(cacheEmDia(o, [alan])).toBe(o);
   });
 });
+
+describe('custo por adulto', () => {
+  it('na mesma conta do preço: a criança pesa a fração dela, e não uma cabeça inteira', () => {
+    const r = calcular(
+      orcamentoDe({
+        adultos: 60,
+        faixas: [
+          { id: 'a', faixaId: null, nome: 'Até 5 anos', percentual: 0, quantidade: 10 },
+          { id: 'b', faixaId: null, nome: '6 a 10 anos', percentual: 25, quantidade: 10 },
+        ],
+      }),
+    );
+    // 60 adultos + 10 crianças a 25% = 62,5 adultos de peso
+    expect(r.custoPorAdulto * 62.5).toBeCloseTo(r.custoTotal, 6);
+    expect(r.precoPorAdulto * 62.5).toBeCloseTo(r.preco, 6);
+  });
+});

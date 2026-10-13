@@ -567,7 +567,7 @@ export default function EditorDeOrcamento({
             <p className="text-right text-sm text-fumaca">Fechado fora do app, sem custo registrado</p>
           ) : (
           <div className="text-right text-sm text-fumaca">
-            <p>{real(resultado.precoPorPessoa)} por pessoa</p>
+            <p>{real(resultado.precoPorAdulto)} por adulto</p>
             <p>
               custo {real(resultado.custoTotal)} · lucro{' '}
               <strong className={resultado.lucro >= 0 ? 'text-verde' : 'text-brasa-clara'}>
@@ -601,15 +601,44 @@ function Resultado({
   return (
     <div className="space-y-6">
       <div className="grid gap-3 sm:grid-cols-2">
+        {/*
+          O descritivo, e não uma média.
+
+          Antes saía "R$ 146,63 por pessoa": o preço dividido por todas as
+          cabeças, inclusive a criança que não paga. Ninguém paga esse valor,
+          e ao lado do custo (dividido de outro jeito) parecia prejuízo. Agora
+          é a mesma tabela que o cliente recebe na proposta.
+        */}
         <div className="cartao p-4">
           <p className="rotulo">Preço fechado</p>
           <p className="metrica mt-1">{real(resultado.preco)}</p>
-          <p className="mt-1 text-sm text-fumaca">{real(resultado.precoPorPessoa)} por pessoa</p>
+          <table className="mt-2 w-full text-sm">
+            <tbody>
+              {resultado.cobranca.map((c) => (
+                <tr key={c.rotulo}>
+                  <td className="py-0.5 pr-2 text-fumaca">
+                    {inteiro(c.quantidade)}{' '}
+                    {c.rotulo === 'Adultos'
+                      ? c.quantidade === 1 ? 'adulto' : 'adultos'
+                      : `${c.quantidade === 1 ? 'criança' : 'crianças'}, ${c.rotulo.toLowerCase()}`}
+                  </td>
+                  <td className="py-0.5 pr-2 text-right text-fumaca">
+                    {c.unitario > 0 ? `${real(c.unitario)} cada` : 'não paga'}
+                  </td>
+                  <td className="py-0.5 text-right font-semibold">{real(c.total)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
         </div>
         <div className="cartao p-4">
           <p className="rotulo">Custo total</p>
           <p className="metrica mt-1 !text-creme">{real(resultado.custoTotal)}</p>
-          <p className="mt-1 text-sm text-fumaca">{real(resultado.custoPorPessoa)} por pessoa</p>
+          <p className="mt-2 text-sm text-fumaca">
+            <strong className="text-creme">{real(resultado.custoPorAdulto)}</strong> por adulto, contra{' '}
+            <strong className="text-creme">{real(resultado.precoPorAdulto)}</strong> cobrados. Criança entra pela fração
+            da faixa, como no preço.
+          </p>
         </div>
       </div>
 
