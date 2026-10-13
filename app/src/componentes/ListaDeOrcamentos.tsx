@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { totalDeConvidados } from '../dominio/calculo';
 import { fechadoPorFora, precoDoEvento } from '../dominio/evento-externo';
-import { separarPorSituacao } from '../dominio/situacao';
+import { anosDaLista, filtrarOrcamentos, separarPorSituacao, TODOS_OS_ANOS } from '../dominio/situacao';
 import { COR_SITUACAO, ROTULO_SITUACAO, type Orcamento, type Situacao } from '../dominio/tipos';
 import { dataCurta, inteiro, real } from '../formato';
 import { BotaoCopiar } from './Campos';
@@ -29,6 +29,32 @@ export default function ListaDeOrcamentos({
   const [mostrarLink, setMostrarLink] = useState(false);
   const [importando, setImportando] = useState(false);
 
+  /*
+    O ano que a lista mostra. Abre no ano corrente e lembra a escolha neste
+    aparelho: quem estava olhando 2027 volta para 2027.
+  */
+  const anoAtual = String(new Date().getFullYear());
+  const [ano, setAnoEstado] = useState(() => {
+    try {
+      return localStorage.getItem('orcamentos-ano') || anoAtual;
+    } catch {
+      return anoAtual;
+    }
+  });
+  const setAno = (a: string) => {
+    setAnoEstado(a);
+    try {
+      localStorage.setItem('orcamentos-ano', a);
+    } catch {
+      /* sem armazenamento, só não lembra */
+    }
+  };
+  const [busca, setBusca] = useState('');
+  const anos = anosDaLista(orcamentos, anoAtual);
+  // Ano lembrado que não existe mais na lista volta para o atual.
+  const anoValido = ano === TODOS_OS_ANOS || anos.some((a) => a.ano === ano) ? ano : anoAtual;
+  const visiveis = filtrarOrcamentos(orcamentos, anoValido, busca);
+
   if (importando) {
     return (
       <ImportarEventos
@@ -48,7 +74,9 @@ export default function ListaDeOrcamentos({
           <p className="mt-1 text-sm text-fumaca">
             {orcamentos.length === 0
               ? 'Nenhum ainda'
-              : `${inteiro(orcamentos.length)} ${orcamentos.length === 1 ? 'orçamento' : 'orçamentos'}`}
+              : visiveis.length === orcamentos.length
+                ? `${inteiro(orcamentos.length)} ${orcamentos.length === 1 ? 'orçamento' : 'orçamentos'}`
+                : `${inteiro(visiveis.length)} de ${inteiro(orcamentos.length)} orçamentos`}
           </p>
         </div>
         <div className="flex flex-wrap justify-end gap-2">
@@ -71,6 +99,40 @@ export default function ListaDeOrcamentos({
 
       {mostrarLink && <LinkDoCardapio />}
 
+      {orcamentos.length > 0 && (
+        <div className="mt-5 flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Ano">
+            {[...anos, { ano: TODOS_OS_ANOS, quantidade: orcamentos.length }].map((a) => {
+              const ativo = !busca.trim() && anoValido === a.ano;
+              return (
+                <button
+                  key={a.ano}
+                  type="button"
+                  aria-pressed={ativo}
+                  onClick={() => {
+                    setAno(a.ano);
+                    setBusca('');
+                  }}
+                  className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                    ativo ? 'bg-carvao-3 text-dourado' : 'text-fumaca hover:text-creme'
+                  }`}
+                >
+                  {a.ano === TODOS_OS_ANOS ? 'Todos' : a.ano}
+                  <span className="ml-1.5 text-xs font-normal text-fumaca">{inteiro(a.quantidade)}</span>
+                </button>
+              );
+            })}
+          </div>
+          <input
+            className="campo !min-h-10 min-w-0 flex-1 sm:max-w-64"
+            value={busca}
+            onChange={(e) => setBusca(e.target.value)}
+            placeholder="Buscar cliente"
+            aria-label="Buscar cliente"
+          />
+        </div>
+      )}
+
       {orcamentos.length === 0 ? (
         <div className="cartao mt-6 p-6 text-sm text-fumaca">
           <p className="font-semibold text-creme">Comece por um evento.</p>
@@ -81,7 +143,12 @@ export default function ListaDeOrcamentos({
         </div>
       ) : (
         <div className="mt-6 space-y-8">
-          {separarPorSituacao(orcamentos).map((bloco) => {
+          {!visiveis.length && (
+            <p className="cartao p-6 text-sm text-fumaca">
+              {busca.trim() ? `Nenhum cliente com "${busca.trim()}".` : `Nenhum orçamento em ${anoValido}.`}
+            </p>
+          )}
+          {separarPorSituacao(visiveis).map((bloco) => {
             /*
               Duas colunas no notebook, uma no celular.
 
@@ -89,7 +156,7 @@ export default function ListaDeOrcamentos({
               do cliente, que é justamente o que se procura na lista.
             */
             const cartoes = (
-              <div className="mt-3 grid gap-3 xl:grid-cols-2">
+              <div className="mt-3 grid grid-cols-1 gap-3 xl:grid-cols-2">
                 {bloco.orcamentos.map((o) => (
                   <Cartao key={o.id} orcamento={o} aoAbrir={aoAbrir} aoDuplicar={aoDuplicar} aoRemover={aoRemover} />
                 ))}
@@ -266,8 +333,10 @@ function Cartao({
         onClick={() => aoAbrir(orcamento.id)}
         className="abrir group/abrir min-w-0 flex-1 cursor-pointer text-left focus-visible:outline-none"
       >
-        <div className="flex items-center gap-2">
-          <p className="truncate font-semibold">{orcamento.cliente || 'Sem nome'}</p>
+        {/* Quebra de linha liberada: as duas etiquetas juntas empurravam o
+            cartão para fora da tela do celular, escondendo Duplicar e Excluir. */}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+          <p className="min-w-0 truncate font-semibold">{orcamento.cliente || 'Sem nome'}</p>
           <span
             className={`shrink-0 rounded-full border px-2 py-0.5 text-[0.65rem] font-semibold ${COR_SITUACAO[orcamento.situacao]}`}
           >

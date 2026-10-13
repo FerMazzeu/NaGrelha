@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { separarPorSituacao } from './situacao';
+import { anosDaLista, filtrarOrcamentos, separarPorSituacao, TODOS_OS_ANOS } from './situacao';
 import type { Orcamento, Situacao } from './tipos';
 
 const faz = (cliente: string, situacao: Situacao, data = '', criadoEm = '2026-10-01T10:00:00Z') =>
@@ -64,5 +64,31 @@ describe('lista de orçamentos separada por situação', () => {
 
   it('bloco vazio não aparece', () => {
     expect(separarPorSituacao([faz('A', 'orcado')]).map((b) => b.situacao)).toEqual(['orcado']);
+  });
+});
+
+describe('filtro por ano', () => {
+  const de = (cliente: string, data: string) => faz(cliente, 'orcado', data);
+  const lista = [de('Ana', '2025-05-01'), de('Bia', '2026-03-02'), de('Caio', ''), de('Dora', '2027-01-09')];
+
+  it('mostra o ano escolhido e os sem data', () => {
+    expect(filtrarOrcamentos(lista, '2026', '').map((o) => o.cliente)).toEqual(['Bia', 'Caio']);
+  });
+
+  it('todos é todos', () => {
+    expect(filtrarOrcamentos(lista, TODOS_OS_ANOS, '')).toHaveLength(4);
+  });
+
+  it('a busca ignora o ano e o acento', () => {
+    expect(filtrarOrcamentos([...lista, de('Dóra Lima', '2025-01-01')], '2026', 'dora').map((o) => o.cliente)).toEqual(['Dora', 'Dóra Lima']);
+  });
+
+  it('lista os anos que existem, com o atual mesmo vazio', () => {
+    expect(anosDaLista(lista, '2028')).toEqual([
+      { ano: '2025', quantidade: 1 },
+      { ano: '2026', quantidade: 1 },
+      { ano: '2027', quantidade: 1 },
+      { ano: '2028', quantidade: 0 },
+    ]);
   });
 });

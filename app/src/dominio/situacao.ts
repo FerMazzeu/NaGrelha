@@ -65,3 +65,46 @@ export function separarPorSituacao(orcamentos: Orcamento[]) {
     return { ...bloco, orcamentos: doBloco };
   }).filter((b) => b.orcamentos.length > 0);
 }
+
+/*
+  Filtro da lista por ano.
+
+  Com o histórico da planilha de caixa importado, a lista passou de sessenta
+  eventos e virou rolagem sem fim. O ano corta o que se olha no dia a dia.
+
+  Evento sem data entra em qualquer ano: é o orçamento que ainda precisa de
+  conversa, e escondê-lo atrás de um filtro é perder o follow-up. E a busca
+  pelo nome ignora o ano: quem procura "Fulana" quer achar a Fulana, de 2025
+  ou de 2027.
+*/
+export const TODOS_OS_ANOS = 'todos';
+
+export function anosDaLista(orcamentos: Orcamento[], anoAtual: string) {
+  const anos = new Set(orcamentos.filter((o) => o.data).map((o) => o.data.slice(0, 4)));
+  anos.add(anoAtual);
+  return [...anos].sort().map((ano) => ({
+    ano,
+    quantidade: orcamentos.filter((o) => o.data.startsWith(ano)).length,
+  }));
+}
+
+export function filtrarOrcamentos(orcamentos: Orcamento[], ano: string, busca: string) {
+  const procurado = busca
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .trim();
+  if (procurado) {
+    return orcamentos.filter((o) =>
+      [o.cliente, o.local, o.contato].some((c) =>
+        (c ?? '')
+          .normalize('NFD')
+          .replace(/[̀-ͯ]/g, '')
+          .toLowerCase()
+          .includes(procurado),
+      ),
+    );
+  }
+  if (ano === TODOS_OS_ANOS) return orcamentos;
+  return orcamentos.filter((o) => !o.data || o.data.startsWith(ano));
+}
