@@ -169,3 +169,13 @@ export function Arquivo(props: Props) {
     </Base>
   );
 }
+
+export function Carteira(props: Props) {
+  return (
+    <Base {...props}>
+      <path d="M4 7a2 2 0 0 1 2-2h11a1 1 0 0 1 1 1v2" />
+      <rect x="3" y="7" width="18" height="13" rx="2" />
+      <path d="M16 13.5h2" />
+    </Base>
+  );
+}

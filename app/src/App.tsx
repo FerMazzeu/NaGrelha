@@ -7,6 +7,7 @@ import EditorDeOrcamento from './componentes/EditorDeOrcamento';
 import Entrar from './componentes/Entrar';
 import Equipe from './componentes/Equipe';
 import ListaDeOrcamentos from './componentes/ListaDeOrcamentos';
+import Caixa from './componentes/caixa/Caixa';
 import { converterPedidosPendentes } from './dados/pedidos';
 import { repositorio } from './dados/supabase';
 import type { FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from './dominio/tipos';
@@ -216,6 +217,7 @@ export default function App() {
     aoTrocarAba: irParaAba,
     email: sessao.user.email ?? '',
     aoSair: () => void supabase.auth.signOut(),
+    souDono,
   };
 
   if (aberto) {
@@ -297,6 +299,17 @@ export default function App() {
           )}
 
           {aba === 'agenda' && <Agenda orcamentos={orcamentos} aoAbrir={setAbertoId} />}
+
+          {aba === 'caixa' && souDono && (
+            <Caixa
+              orcamentos={orcamentos}
+              membros={membros}
+              aoSalvarEvento={async (o) => {
+                await repositorio.salvarOrcamento(o);
+                lembrar(o);
+              }}
+            />
+          )}
 
           {aba === 'equipe' && (
             <Equipe

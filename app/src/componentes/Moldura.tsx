@@ -1,5 +1,5 @@
 import type { ReactElement, ReactNode } from 'react';
-import { Calendario, Faisca, Lista, Pessoas, Recibo } from './Icones';
+import { Calendario, Carteira, Faisca, Lista, Pessoas, Recibo } from './Icones';
 
 /**
  * A moldura do app: o menu e o lugar onde a tela acontece.
@@ -22,11 +22,12 @@ import { Calendario, Faisca, Lista, Pessoas, Recibo } from './Icones';
  * o assistente perder a resposta no meio por causa de um giro de tela.
  */
 
-export type Aba = 'orcamentos' | 'agenda' | 'equipe' | 'catalogo' | 'assistente';
+export type Aba = 'orcamentos' | 'agenda' | 'caixa' | 'equipe' | 'catalogo' | 'assistente';
 
 export const ABAS = [
   { id: 'orcamentos', rotulo: 'Orçamentos', Icone: Recibo },
   { id: 'agenda', rotulo: 'Agenda', Icone: Calendario },
+  { id: 'caixa', rotulo: 'Caixa', Icone: Carteira },
   { id: 'equipe', rotulo: 'Equipe', Icone: Pessoas },
   { id: 'catalogo', rotulo: 'Catálogo', Icone: Lista },
   { id: 'assistente', rotulo: 'Assistente', Icone: Faisca },
@@ -37,14 +38,18 @@ export default function Moldura({
   aoTrocarAba,
   email,
   aoSair,
+  souDono = false,
   children,
 }: {
   aba: Aba;
+  /** O caixa só aparece para dono. A RLS garante o mesmo no banco. */
+  souDono?: boolean;
   aoTrocarAba: (a: Aba) => void;
   email: string;
   aoSair: () => void;
   children: ReactNode;
 }) {
+  const abas = ABAS.filter((a) => a.id !== 'caixa' || souDono);
   return (
     <>
       {/* ------------------------------------------------ computador ------ */}
@@ -58,7 +63,7 @@ export default function Moldura({
         </div>
 
         <nav className="flex-1 space-y-1 overflow-y-auto p-3">
-          {ABAS.map((a) => {
+          {abas.map((a) => {
             const ativa = aba === a.id;
             return (
               <button
@@ -124,7 +129,7 @@ export default function Moldura({
           className="area flex items-stretch gap-1 py-1.5"
           style={{ paddingBottom: 'env(safe-area-inset-bottom, 0px)' }}
         >
-          {ABAS.map((a) => {
+          {abas.map((a) => {
             const ativa = aba === a.id;
             return (
               <button
