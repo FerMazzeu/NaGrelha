@@ -345,12 +345,15 @@ function Pagina({ children }: { children: React.ReactNode }) {
   return (
     <div className="min-h-[100svh] bg-[#f7f2ea] text-[#1a1512]">
       <div className="mx-auto max-w-3xl space-y-4 px-4 py-6">
-        <div className="flex items-center gap-3">
-          <img src="/logo.png" alt="" className="h-10 w-10 rounded-full object-cover" onError={(e) => (e.currentTarget.style.display = 'none')} />
-          <div>
-            <p className="font-bold leading-tight">Na Grelha</p>
-            <p className="text-xs text-[#7a6e62]">com Alan Xavier</p>
-          </div>
+        {/* A logo inteira, sem recorte: ela já traz o nome. Num círculo, a
+            chama e o "NA GRELHA" ficavam cortados. */}
+        <div className="flex justify-center pt-2">
+          <img
+            src="/logo.png"
+            alt="Na Grelha com Alan Xavier"
+            className="h-24 w-auto object-contain"
+            onError={(e) => (e.currentTarget.style.display = 'none')}
+          />
         </div>
         {children}
       </div>
