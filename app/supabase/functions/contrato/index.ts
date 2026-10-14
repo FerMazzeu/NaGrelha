@@ -56,14 +56,23 @@ function codigoNovo() {
 /** fu***@gmail.com: a tela confirma para onde foi sem mostrar o e-mail inteiro. */
 const mascarar = (email: string) => email.replace(/^(.{2})[^@]*(@.*)$/, '$1***$2');
 
+/**
+ * Escapa para HTML. Tudo que veio do cliente e entra no corpo do e-mail passa
+ * por aqui: sem isto, quem tivesse um link podia escrever HTML no nome e usar
+ * o domínio do buffet para mandar e-mail com conteúdo e link falsos.
+ */
+const esc = (t: string) =>
+  t.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]!);
+
 /** O que o cliente mandou, limpo e com tamanho máximo, antes de ir para o banco. */
 function limpar(bruto: unknown): Contratante {
   const o = (bruto && typeof bruto === 'object' ? bruto : {}) as Record<string, unknown>;
   const s = (v: unknown, max: number) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, max) : '');
   return {
-    nome: s(o.nome, 120),
+    // Nome e endereço não têm motivo para levar sinais de HTML.
+    nome: s(o.nome, 120).replace(/[<>"]/g, ''),
     cpf: s(o.cpf, 20).replace(/\D/g, ''),
-    endereco: s(o.endereco, 300),
+    endereco: s(o.endereco, 300).replace(/[<>"]/g, ''),
     email: s(o.email, 160).toLowerCase(),
     telefone: s(o.telefone, 40),
   };
@@ -174,7 +183,7 @@ Deno.serve(async (req) => {
       const envio = await mandarEmail(
         contratante.email,
         `${codigo} é o seu código para assinar o contrato`,
-        moldura(`<p style="font-size:16px;margin:0 0 8px">Olá, ${contratante.nome.split(' ')[0]}!</p>
+        moldura(`<p style="font-size:16px;margin:0 0 8px">Olá, ${esc(contratante.nome.split(' ')[0])}!</p>
 <p style="font-size:15px;line-height:1.5;margin:0 0 20px">Use o código abaixo para assinar o contrato do seu evento. Ele vale por ${VALIDADE_DO_CODIGO_MIN} minutos.</p>
 <p style="font-size:34px;font-weight:bold;letter-spacing:10px;background:#fff;border-radius:12px;padding:16px;text-align:center;margin:0">${codigo}</p>`),
         `Seu código para assinar o contrato do Na Grelha: ${codigo}\nEle vale por ${VALIDADE_DO_CODIGO_MIN} minutos.`,
@@ -263,12 +272,14 @@ Deno.serve(async (req) => {
         .in('situacao', ['rascunho', 'orcado']);
 
       // Comprovante para o cliente. Se falhar, a assinatura já está valendo.
-      const origem = req.headers.get('origin') ?? '';
-      const link = /^https:\/\//.test(origem) ? `${origem}/?contrato=${token}` : '';
+      // O endereço do app vem da configuração, nunca do cabeçalho Origin: quem
+      // chama a função escolhe o Origin, e o link do e-mail viraria phishing.
+      const app = (Deno.env.get('APP_URL') ?? '').replace(/\/+$/, '');
+      const link = /^https:\/\/[^\s"'<>]+$/.test(app) ? `${app}/?contrato=${token}` : '';
       await mandarEmail(
         contratante.email,
         'Contrato assinado - Na Grelha com Alan Xavier',
-        moldura(`<p style="font-size:16px;margin:0 0 8px">Contrato assinado, ${contratante.nome.split(' ')[0]}!</p>
+        moldura(`<p style="font-size:16px;margin:0 0 8px">Contrato assinado, ${esc(contratante.nome.split(' ')[0])}!</p>
 <p style="font-size:15px;line-height:1.5;margin:0 0 12px">Recebemos a sua assinatura em ${new Date(assinadoEm).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo' })}.</p>
 <p style="font-size:13px;line-height:1.5;color:#52514e;margin:0 0 20px">Código de verificação do documento (SHA-256):<br><span style="font-family:monospace;word-break:break-all">${hash}</span></p>
 ${link ? `<p style="margin:0"><a href="${link}" style="background:#c4261d;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:bold">Ver e baixar o contrato</a></p>` : ''}`),
