@@ -25,10 +25,13 @@ export default function Proposta({
   orcamento,
   resultado,
   aoFechar,
+  linkDoContrato,
 }: {
   orcamento: Orcamento;
   resultado: Resultado;
   aoFechar: () => void;
+  /** Contrato aguardando assinatura: o link pode ir junto no recado. */
+  linkDoContrato?: string;
 }) {
   /*
     Detalhe só onde o cliente escolhe: carne e frios.
@@ -94,7 +97,12 @@ export default function Proposta({
     };
   }, [orcamento, resultado]);
 
-  const recado = `Olá${orcamento.cliente ? `, ${orcamento.cliente.trim().split(' ')[0]}` : ''}! Segue o orçamento da Na Grelha com Alan Xavier.`;
+  const [comContrato, setComContrato] = useState(true);
+  const recado = `Olá${orcamento.cliente ? `, ${orcamento.cliente.trim().split(' ')[0]}` : ''}! Segue o orçamento da Na Grelha com Alan Xavier.${
+    linkDoContrato && comContrato
+      ? `\n\nE aqui o contrato para conferir e assinar pelo celular: ${linkDoContrato}`
+      : ''
+  }`;
 
   const enviar = async () => {
     if (!pdf) return;
@@ -137,6 +145,12 @@ export default function Proposta({
           <button type="button" className="botao botao-brasa !min-h-10 !px-4 text-sm" disabled={!pdf} onClick={enviar}>
             {pdf ? 'Enviar PDF no WhatsApp' : erro ? 'PDF indisponível' : 'Preparando o PDF...'}
           </button>
+          {linkDoContrato && (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" className="h-4 w-4 accent-[#c4261d]" checked={comContrato} onChange={(e) => setComContrato(e.target.checked)} />
+              Mandar o link do contrato junto
+            </label>
+          )}
         </div>
         {(erro || aviso) && <p className="basis-full text-sm text-fumaca">{erro || aviso}</p>}
       </div>

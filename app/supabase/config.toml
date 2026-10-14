@@ -1,0 +1,22 @@
+# Só o que o deploy das edge functions precisa saber.
+#
+# O verify_jwt fica declarado aqui para não depender de alguém lembrar na hora
+# do deploy: o padrão do CLI é `true`, e publicar a função pública com `true`
+# derruba o link do contrato de todo cliente, em silêncio (401).
+project_id = "idwmchjvcmzdxljkaqdq"
+
+[functions.chat]
+verify_jwt = true
+
+[functions.imagem]
+verify_jwt = true
+
+[functions.planilha]
+verify_jwt = true
+
+[functions.titulo]
+verify_jwt = true
+
+# Pública: o cliente abre o link sem login. A segurança é o token do link.
+[functions.contrato]
+verify_jwt = false

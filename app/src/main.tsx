@@ -15,9 +15,16 @@ import './index.css';
   desconhecido para o index.html sem configuração, e um link quebrado no
   WhatsApp do cliente é o pior lugar para descobrir isso.
 */
-const ehPedidoDoCliente = new URLSearchParams(window.location.search).has('pedido');
+const busca = new URLSearchParams(window.location.search);
+const ehPedidoDoCliente = busca.has('pedido');
+// `/?contrato=<token>`: o contrato que o cliente assina. Mesma lógica do pedido.
+const ehContratoDoCliente = busca.has('contrato');
 
-const Raiz = ehPedidoDoCliente ? lazy(() => import('./pedido/PedidoDoCliente')) : lazy(() => import('./App'));
+const Raiz = ehContratoDoCliente
+  ? lazy(() => import('./contrato/ContratoDoCliente'))
+  : ehPedidoDoCliente
+    ? lazy(() => import('./pedido/PedidoDoCliente'))
+    : lazy(() => import('./App'));
 
 const raiz = document.getElementById('root');
 if (!raiz) throw new Error('elemento #root nao encontrado');

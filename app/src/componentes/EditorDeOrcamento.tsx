@@ -22,6 +22,8 @@ import { BotaoCopiar, Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado 
 import Proposta from './Proposta';
 import { mensagemDe } from '../erro';
 import { sufixoPorPessoa } from '../dominio/unidade';
+import { linkDoContrato, type Contrato } from '../dados/contratos';
+import ContratoDoEvento from './ContratoDoEvento';
 import { fechadoPorFora } from '../dominio/evento-externo';
 
 const METAS_DE_CARNE = [300, 350, 400, 450, 500];
@@ -44,6 +46,8 @@ export default function EditorDeOrcamento({
   aoRemover: () => void;
 }) {
   const [vendoProposta, setVendoProposta] = useState(false);
+  // O contrato em aberto deste evento: o link vai junto quando a proposta é enviada.
+  const [contratoAtivo, setContratoAtivo] = useState<Contrato | null>(null);
   // Excluir em dois toques, como no cartão da lista: aqui o botão fica no
   // alto da tela, ao lado do nome, e um toque errado levava o orçamento.
   const [confirmandoExclusao, setConfirmandoExclusao] = useState(false);
@@ -76,7 +80,14 @@ export default function EditorDeOrcamento({
     mesmo lugar onde estava.
   */
   if (vendoProposta) {
-    return <Proposta orcamento={orcamento} resultado={resultado} aoFechar={() => setVendoProposta(false)} />;
+    return (
+      <Proposta
+        orcamento={orcamento}
+        resultado={resultado}
+        aoFechar={() => setVendoProposta(false)}
+        linkDoContrato={contratoAtivo?.situacao === 'enviado' ? linkDoContrato(contratoAtivo.token) : undefined}
+      />
+    );
   }
 
   return (
@@ -542,6 +553,8 @@ export default function EditorDeOrcamento({
             orcamento={orcamento}
             resultado={resultado}
             aoVerProposta={() => setVendoProposta(true)}
+            aoMudarContrato={setContratoAtivo}
+            contratoAtivo={contratoAtivo}
           />
         )}
       </div>
@@ -586,12 +599,21 @@ function Resultado({
   orcamento,
   resultado,
   aoVerProposta,
+  aoMudarContrato,
+  contratoAtivo,
 }: {
   orcamento: Orcamento;
   resultado: ReturnType<typeof calcular>;
   aoVerProposta: () => void;
+  aoMudarContrato: (c: Contrato | null) => void;
+  contratoAtivo: Contrato | null;
 }) {
-  const proposta = textoDaProposta(orcamento, resultado);
+  // Com contrato aguardando assinatura, o link vai no fim da proposta em texto.
+  const proposta = `${textoDaProposta(orcamento, resultado)}${
+    contratoAtivo?.situacao === 'enviado'
+      ? `\n\n*CONTRATO*\nConfira e assine pelo celular: ${linkDoContrato(contratoAtivo.token)}`
+      : ''
+  }`;
   const compras = textoDaListaDeCompras(orcamento, resultado);
   const escala = textoDaEscala(orcamento, resultado);
   const zap = orcamento.contato.replace(/\D/g, '');
@@ -682,6 +704,8 @@ function Resultado({
           </button>
         </div>
       </div>
+
+      <ContratoDoEvento orcamento={orcamento} resultado={resultado} aoMudar={aoMudarContrato} />
 
       {/* Exportar fecha o ciclo: o orcamento sai no formato de planilha que
           eles ja usam, com insumos por preparo, servico e total por convidado. */}
