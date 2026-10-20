@@ -1,4 +1,5 @@
 import { ROTULO_CATEGORIA } from './dominio/catalogo';
+import type { ComprasJuntas } from './dominio/compras';
 import { montarCardapio, nomeParaCliente } from './dominio/cardapio-do-cliente';
 import { condicoesDoEvento } from './dominio/condicoes';
 import { ROTULO_PAPEL, type Item, type Orcamento, type Resultado } from './dominio/tipos';
@@ -205,5 +206,41 @@ export function textoDaEscala(orcamento: Orcamento, resultado: Resultado) {
   linhas.push('');
   linhas.push(`Total de serviço: ${real(resultado.custoServicos)}`);
 
+  return linhas.join('\n');
+}
+
+/**
+ * A lista de compras de vários eventos, para mandar no WhatsApp.
+ *
+ * Cada item vem somado, e embaixo quanto vai para cada evento: é o que o Alan
+ * precisa na hora de separar as caixas depois da compra do mês.
+ */
+export function textoDasComprasJuntas(juntas: ComprasJuntas, titulo: string) {
+  const linhas: string[] = [];
+  linhas.push('*LISTA DE COMPRAS*');
+  linhas.push(`${titulo} · ${inteiro(juntas.eventos.length)} ${juntas.eventos.length === 1 ? 'evento' : 'eventos'}`);
+  for (const e of juntas.eventos) linhas.push(`• ${e.data ? dataCurta(e.data).slice(0, 5) : 'sem data'} ${e.cliente || 'Sem nome'}`);
+  linhas.push('');
+
+  for (const [categoria, itens] of juntas.porCategoria) {
+    linhas.push(`*${categoria.toUpperCase()}*`);
+    for (const item of itens) {
+      linhas.push(`• ${item.nome}: ${quantidade(item.comprar, item.unidade, item.embalagens)}`);
+      if (item.porEvento.length > 1) {
+        linhas.push(
+          `   ${item.porEvento.map((p) => `${p.cliente.split(' ')[0]} ${quantidade(p.comprar, item.unidade)}`).join(' · ')}`,
+        );
+      }
+    }
+    linhas.push('');
+  }
+
+  if (juntas.carvaoKg > 0) {
+    linhas.push('*CARVÃO*');
+    linhas.push(`• Carvão: ${inteiro(juntas.carvaoKg)} kg`);
+    linhas.push('');
+  }
+  if (juntas.carneCruaKg > 0) linhas.push(`Carne crua no total: ${decimal(juntas.carneCruaKg)} kg`);
+  linhas.push(`Custo estimado das compras: ${real(juntas.custoTotal)}`);
   return linhas.join('\n');
 }

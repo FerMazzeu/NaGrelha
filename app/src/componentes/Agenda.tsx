@@ -3,6 +3,7 @@ import { totalDeConvidados } from '../dominio/calculo';
 import { precoDoEvento } from '../dominio/evento-externo';
 import { COR_SITUACAO, ROTULO_SITUACAO, type Orcamento, type Situacao } from '../dominio/tipos';
 import { inteiro, real } from '../formato';
+import ComprasDoMes from './ComprasDoMes';
 
 const MESES = [
   'janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho',
@@ -23,6 +24,7 @@ export default function Agenda({
   aoAbrir: (id: string) => void;
 }) {
   const [filtro, setFiltro] = useState<Situacao | 'todos'>('todos');
+  const [vendoCompras, setVendoCompras] = useState(false);
 
   const { meses, semData } = useMemo(() => {
     const visiveis = filtro === 'todos' ? orcamentos : orcamentos.filter((o) => o.situacao === filtro);
@@ -41,6 +43,8 @@ export default function Agenda({
   const confirmados = orcamentos.filter((o) => o.situacao === 'confirmado');
   const receitaConfirmada = confirmados.reduce((s, o) => s + precoDoEvento(o), 0);
 
+  if (vendoCompras) return <ComprasDoMes orcamentos={orcamentos} aoVoltar={() => setVendoCompras(false)} />;
+
   return (
     <div className="area py-6">
       <div className="flex flex-wrap items-end justify-between gap-4">
@@ -50,6 +54,9 @@ export default function Agenda({
             {inteiro(confirmados.length)} confirmados, {real(receitaConfirmada)} em contratos
           </p>
         </div>
+        <button type="button" className="botao botao-brasa" onClick={() => setVendoCompras(true)}>
+          Lista de compras do mês
+        </button>
       </div>
 
       <div className="mt-4 flex flex-wrap gap-2">
