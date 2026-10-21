@@ -99,6 +99,36 @@ async function alinharFontes(doc: Document, principalTemAFonte: boolean) {
   return 'segura';
 }
 
+/*
+  O CSS do app vai para a cópia como texto, e não como <link>.
+
+  O Alan mandou um PDF todo cru: logo gigante, letra serifada, "Cliente" e
+  "Larissa" um embaixo do outro sem estilo nenhum, enquanto a tela mostrava
+  a proposta certinha. A cópia do html2canvas baixa de novo cada <link> de
+  CSS. O arquivo do app tem o hash da versão no nome, e cada deploy apaga o
+  anterior: com o app aberto desde antes de um deploy, a cópia pedia um CSS
+  que já dava 404 e saía sem estilo. Por isso "cada hora saía de um jeito".
+
+  A tela já tem esse CSS carregado; ele é copiado regra por regra. A folha do
+  Google fica como <link>: ela é de outro domínio, o navegador não deixa ler
+  as regras, e o endereço dela não muda com deploy.
+*/
+function embutirEstilos(doc: Document) {
+  for (const folha of [...document.styleSheets]) {
+    if (!folha.href) continue;
+    let css: string;
+    try {
+      css = [...folha.cssRules].map((r) => r.cssText).join('\n');
+    } catch {
+      continue;
+    }
+    doc.querySelectorAll<HTMLLinkElement>('link[rel="stylesheet"]').forEach((l) => l.href === folha.href && l.remove());
+    const estilo = doc.createElement('style');
+    estilo.textContent = css;
+    doc.head.appendChild(estilo);
+  }
+}
+
 /**
  * Fotografa a folha. Separado do PDF para dar para ver a imagem em teste.
  *
@@ -123,6 +153,7 @@ export async function capturarProposta(elemento: HTMLElement, opcoes: { simularC
       if (opcoes.simularCopiaSemFonte) {
         doc.querySelectorAll('link[href*="fonts.googleapis"]').forEach((l) => l.remove());
       }
+      embutirEstilos(doc);
       fonte = await alinharFontes(doc, principalTemAFonte);
       copia.style.width = `${LARGURA_A4}px`;
       copia.style.margin = '0';
