@@ -345,6 +345,61 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
   return secoes;
 }
 
+// ----------------------------------------------------------------- louça --
+
+/*
+  A louça que o cliente pode pedir pelo link.
+
+  O Alan pediu: "prato, copo, talher, prato sobremesa, as outras coisas a
+  gente já embute depois". Então são só estas quatro, e não a lista de louça
+  do catálogo, que tem travessa, rechaud e o resto que a equipe decide.
+
+  A louça não sai da função pública do cardápio (ver `cardapio_publico`), e o
+  pedido não tem coluna para ela. Ela vai no recado, numa linha que começa com
+  "Louça:", e a conversão em orçamento lê essa linha de volta e marca os itens
+  de louça do catálogo pelo nome. Assim não precisa mexer no banco.
+*/
+export const LOUCAS = [
+  { chave: 'prato', nome: 'Prato', padrao: /\bprato/i, fora: /sobremesa/i },
+  { chave: 'copo', nome: 'Copo', padrao: /\b(copo|ta[cç]a)/i },
+  { chave: 'talher', nome: 'Talher', padrao: /talher|garfo|faca|colher/i, fora: /sobremesa/i },
+  { chave: 'sobremesa', nome: 'Prato de sobremesa', padrao: /prato.*sobremesa/i },
+] as const;
+
+export type Louca = (typeof LOUCAS)[number]['chave'];
+
+const ROTULO_DA_LOUCA = 'Louça: ';
+
+/** Junta a louça marcada ao recado, na linha que a conversão sabe ler. */
+export function recadoComLouca(recado: string, loucas: Louca[]) {
+  const nomes = LOUCAS.filter((l) => loucas.includes(l.chave)).map((l) => l.nome.toLocaleLowerCase('pt-BR'));
+  if (!nomes.length) return recado.trim();
+  const linha = `${ROTULO_DA_LOUCA}${nomes.join(', ').replace(/, ([^,]*)$/, ' e $1')}.`;
+  return [linha, recado.trim()].filter(Boolean).join('\n');
+}
+
+/** Separa de volta a linha da louça e o que o cliente escreveu. */
+export function loucaDoRecado(recado: string): { loucas: Louca[]; linha: string; resto: string } {
+  const [primeira = '', ...resto] = recado.split('\n');
+  if (!primeira.startsWith(ROTULO_DA_LOUCA)) return { loucas: [], linha: '', resto: recado.trim() };
+  const linha = primeira.slice(ROTULO_DA_LOUCA.length).replace(/\.$/, '');
+  const nomes = linha.split(/, | e /).map(chaveDeNome);
+  return {
+    loucas: LOUCAS.filter((l) => nomes.includes(chaveDeNome(l.nome))).map((l) => l.chave),
+    linha,
+    resto: resto.join('\n').trim(),
+  };
+}
+
+/** Os itens de louça do catálogo que casam com o que o cliente pediu. */
+export function itensDaLouca(catalogo: Item[], loucas: Louca[]) {
+  const pedidas = LOUCAS.filter((l) => loucas.includes(l.chave));
+  return catalogo
+    .filter((i) => i.categoria === 'estrutura')
+    .filter((i) => pedidas.some((l) => l.padrao.test(i.nome) && !('fora' in l && l.fora.test(i.nome))))
+    .map((i) => i.id);
+}
+
 // ------------------------------------------------------- pedido → orçamento --
 
 export type CriancasDoPedido = { faixaId: string; quantidade: number }[];
@@ -405,9 +460,11 @@ export function pedidoParaOrcamento(
 
   // Item que saiu do catálogo depois do pedido não volta como fantasma.
   const existentes = new Set(base.itens.map((i) => i.id));
-  const selecionados = [...new Set(pedido.itens)].filter((id) => existentes.has(id));
+  const doCardapio = [...new Set(pedido.itens)].filter((id) => existentes.has(id));
+  const louca = loucaDoRecado(pedido.observacoes);
+  const selecionados = [...new Set([...doCardapio, ...itensDaLouca(base.itens, louca.loucas)])];
 
-  const perdidos = pedido.itens.length - selecionados.length;
+  const perdidos = pedido.itens.length - doCardapio.length;
   const criancasPerdidas = pedido.criancas.filter(
     (c) => c.quantidade > 0 && !faixasDisponiveis.some((f) => f.id === c.faixaId),
   ).length;
@@ -416,7 +473,8 @@ export function pedidoParaOrcamento(
     `Pedido feito pelo cliente no link em ${new Date(pedido.criadoEm).toLocaleDateString('pt-BR')}.`,
     perdidos > 0 ? `${perdidos} item(ns) marcado(s) pelo cliente não existe(m) mais no catálogo.` : '',
     criancasPerdidas > 0 ? 'Uma faixa de idade das crianças não existe mais: confira os convidados.' : '',
-    pedido.observacoes.trim() ? `Recado do cliente: ${pedido.observacoes.trim()}` : '',
+    louca.linha ? `Louça pedida pelo cliente: ${louca.linha}.` : '',
+    louca.resto ? `Recado do cliente: ${louca.resto}` : '',
   ].filter(Boolean);
 
   return {

@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
-import { montarCardapio, nomeDePrato, pedidoParaOrcamento, type ItemPublico, type Pedido } from './cardapio-do-cliente';
+import {
+  loucaDoRecado,
+  montarCardapio,
+  nomeDePrato,
+  pedidoParaOrcamento,
+  recadoComLouca,
+  type ItemPublico,
+  type Pedido,
+} from './cardapio-do-cliente';
 import type { Categoria, FaixaEtaria, Item, Servico } from './tipos';
 
 const pub = (id: string, nome: string, grupo: string, categoria: Categoria): ItemPublico => ({
@@ -381,5 +389,61 @@ describe('pedido do link vira rascunho', () => {
 
   it('pedido sem data não inventa uma', () => {
     expect(pedidoParaOrcamento({ ...PEDIDO, data: null }, CATALOGO, SERVICOS, FAIXAS).data).toBe('');
+  });
+});
+
+// ------------------------------------------------------------------- louça --
+
+const louca = (id: string, nome: string): Item => ({ ...item(id, nome), grupo: 'LOUÇAS', categoria: 'estrutura' });
+
+const COM_LOUCA: Item[] = [
+  ...CATALOGO,
+  louca('pr', 'Prato raso'),
+  louca('ps', 'Prato de sobremesa'),
+  louca('cp', 'Copo de vidro'),
+  louca('gf', 'Garfo'),
+  louca('fc', 'Faca'),
+  louca('cs', 'Colher de sobremesa'),
+  louca('tv', 'Travessa'),
+];
+
+describe('louça pedida pelo link', () => {
+  it('vai no recado numa linha só, antes do que o cliente escreveu', () => {
+    expect(recadoComLouca(' Tem gente vegetariana. ', ['copo', 'prato', 'sobremesa'])).toBe(
+      'Louça: prato, copo e prato de sobremesa.\nTem gente vegetariana.',
+    );
+  });
+
+  it('sem louça marcada, o recado fica como está', () => {
+    expect(recadoComLouca('Oi', [])).toBe('Oi');
+  });
+
+  it('a linha volta a ser a louça marcada, e "prato de sobremesa" não vira "prato"', () => {
+    expect(loucaDoRecado(recadoComLouca('', ['sobremesa'])).loucas).toEqual(['sobremesa']);
+    expect(loucaDoRecado(recadoComLouca('x', ['prato', 'talher'])).loucas).toEqual(['prato', 'talher']);
+  });
+
+  it('cliente que escreve "louça" no meio do recado não marca nada', () => {
+    expect(loucaDoRecado('Quero saber da Louça: prato').loucas).toEqual([]);
+  });
+
+  it('no rascunho, marca os itens de louça do catálogo pelo nome', () => {
+    const o = pedidoParaOrcamento(
+      { ...PEDIDO, observacoes: recadoComLouca('Tem gente vegetariana.', ['prato', 'talher']) },
+      COM_LOUCA,
+      SERVICOS,
+      FAIXAS,
+    );
+    // Prato raso, garfo e faca. Prato e colher de sobremesa ficam de fora:
+    // o cliente não pediu prato de sobremesa. Travessa a equipe decide.
+    expect(o.selecionados).toEqual(['pic', 'fra', 'pr', 'gf', 'fc']);
+    expect(o.observacoes).toContain('Louça pedida pelo cliente: prato e talher.');
+    expect(o.observacoes).toContain('Recado do cliente: Tem gente vegetariana.');
+  });
+
+  it('prato de sobremesa marca só o de sobremesa', () => {
+    const o = pedidoParaOrcamento({ ...PEDIDO, observacoes: recadoComLouca('', ['sobremesa']) }, COM_LOUCA, SERVICOS, FAIXAS);
+    expect(o.selecionados).toEqual(['pic', 'fra', 'ps']);
+    expect(o.observacoes).not.toContain('Recado do cliente');
   });
 });

@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from '../componentes/Campos';
 import { lerCardapioPublico, lerFaixasPublicas, enviarPedido, type FaixaPublica } from '../dados/pedidos';
-import { montarCardapio, type SecaoDoCardapio } from '../dominio/cardapio-do-cliente';
+import { LOUCAS, montarCardapio, recadoComLouca, type Louca, type SecaoDoCardapio } from '../dominio/cardapio-do-cliente';
 import type { TipoDeEvento } from '../dominio/tipos';
 import { inteiro } from '../formato';
 import { mensagemDe } from '../erro';
@@ -45,6 +45,7 @@ export default function PedidoDoCliente() {
   const [criancas, setCriancas] = useState<Record<string, number>>({});
   const [observacoes, setObservacoes] = useState('');
   const [marcados, setMarcados] = useState<Set<string>>(new Set());
+  const [loucas, setLoucas] = useState<Louca[]>([]);
 
   useEffect(() => {
     Promise.all([lerCardapioPublico(), lerFaixasPublicas()])
@@ -96,7 +97,7 @@ export default function PedidoDoCliente() {
         local,
         adultos,
         criancas: Object.entries(criancas).map(([faixaId, quantidade]) => ({ faixaId, quantidade })),
-        observacoes,
+        observacoes: recadoComLouca(observacoes, loucas),
         itens: pratos.filter((p) => marcados.has(p.chave)).flatMap((p) => p.ids),
       });
       setEtapa('enviado');
@@ -293,13 +294,45 @@ export default function PedidoDoCliente() {
           );
         })}
 
+        {/* --------------------------------------------------------- louça */}
+        <section>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="titulo text-lg text-dourado">Louça</h2>
+            <span className="shrink-0 text-xs text-fumaca">Se quiser que a gente leve.</span>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            {LOUCAS.map((l) => {
+              const marcada = loucas.includes(l.chave);
+              return (
+                <label
+                  key={l.chave}
+                  className={`cartao flex cursor-pointer items-center gap-3 p-3.5 transition-colors ${
+                    marcada ? 'border-dourado/70 bg-dourado/10' : 'hover:border-dourado/30'
+                  }`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={marcada}
+                    onChange={() =>
+                      setLoucas((atual) => (marcada ? atual.filter((x) => x !== l.chave) : [...atual, l.chave]))
+                    }
+                    className="h-5 w-5 shrink-0 accent-[#e3a53f]"
+                  />
+                  <span className={`min-w-0 flex-1 ${marcada ? 'font-semibold text-creme' : ''}`}>{l.nome}</span>
+                </label>
+              );
+            })}
+          </div>
+        </section>
+
         {/* -------------------------------------------------------- recado */}
         <section className="cartao p-5">
           <Campo rotulo="Quer contar mais alguma coisa?" dica="Restrição alimentar, tema da festa, horário de montagem...">
             <textarea
               className="campo rolagem-discreta min-h-24 resize-y"
               value={observacoes}
-              maxLength={2000}
+              // A linha da louça vai junto, e o banco aceita 2000 no total.
+              maxLength={1900}
               onChange={(e) => setObservacoes(e.target.value)}
             />
           </Campo>
