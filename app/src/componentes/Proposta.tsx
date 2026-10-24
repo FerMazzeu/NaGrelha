@@ -26,12 +26,20 @@ export default function Proposta({
   resultado,
   aoFechar,
   linkDoContrato,
+  comPorPessoa,
+  aoMudarPorPessoa,
 }: {
   orcamento: Orcamento;
   resultado: Resultado;
   aoFechar: () => void;
   /** Contrato aguardando assinatura: o link pode ir junto no recado. */
   linkDoContrato?: string;
+  /**
+   * Tem cliente que só deve ver o valor fechado. Sem o por pessoa, sai também
+   * o total de cada linha: com ele e o número de pessoas, a conta volta.
+   */
+  comPorPessoa: boolean;
+  aoMudarPorPessoa: (v: boolean) => void;
 }) {
   /*
     Detalhe só onde o cliente escolhe: carne e frios.
@@ -73,11 +81,6 @@ export default function Proposta({
   */
   const folha = useRef<HTMLElement>(null);
   const [pdf, setPdf] = useState<File | null>(null);
-  /*
-    Tem cliente que só deve ver o valor fechado. Sem o por pessoa, sai também
-    o total de cada linha: com ele e o número de pessoas, a conta volta.
-  */
-  const [comPorPessoa, setComPorPessoa] = useState(true);
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
 
@@ -151,7 +154,7 @@ export default function Proposta({
             {pdf ? 'Enviar PDF no WhatsApp' : erro ? 'PDF indisponível' : 'Preparando o PDF...'}
           </button>
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" className="h-4 w-4 accent-[#c4261d]" checked={comPorPessoa} onChange={(e) => setComPorPessoa(e.target.checked)} />
+            <input type="checkbox" className="h-4 w-4 accent-[#c4261d]" checked={comPorPessoa} onChange={(e) => aoMudarPorPessoa(e.target.checked)} />
             Mostrar o preço por pessoa
           </label>
           {linkDoContrato && (

@@ -46,6 +46,8 @@ export default function EditorDeOrcamento({
   aoRemover: () => void;
 }) {
   const [vendoProposta, setVendoProposta] = useState(false);
+  // Escolhido no cartão do PDF, antes de abrir: só o valor total ou com o por pessoa.
+  const [comPorPessoa, setComPorPessoa] = useState(true);
   // O contrato em aberto deste evento: o link vai junto quando a proposta é enviada.
   const [contratoAtivo, setContratoAtivo] = useState<Contrato | null>(null);
   // Excluir em dois toques, como no cartão da lista: aqui o botão fica no
@@ -85,6 +87,8 @@ export default function EditorDeOrcamento({
         orcamento={orcamento}
         resultado={resultado}
         aoFechar={() => setVendoProposta(false)}
+        comPorPessoa={comPorPessoa}
+        aoMudarPorPessoa={setComPorPessoa}
         linkDoContrato={contratoAtivo?.situacao === 'enviado' ? linkDoContrato(contratoAtivo.token) : undefined}
       />
     );
@@ -553,6 +557,8 @@ export default function EditorDeOrcamento({
             orcamento={orcamento}
             resultado={resultado}
             aoVerProposta={() => setVendoProposta(true)}
+            comPorPessoa={comPorPessoa}
+            aoMudarPorPessoa={setComPorPessoa}
             aoMudarContrato={setContratoAtivo}
             contratoAtivo={contratoAtivo}
           />
@@ -599,12 +605,16 @@ function Resultado({
   orcamento,
   resultado,
   aoVerProposta,
+  comPorPessoa,
+  aoMudarPorPessoa,
   aoMudarContrato,
   contratoAtivo,
 }: {
   orcamento: Orcamento;
   resultado: ReturnType<typeof calcular>;
   aoVerProposta: () => void;
+  comPorPessoa: boolean;
+  aoMudarPorPessoa: (v: boolean) => void;
   aoMudarContrato: (c: Contrato | null) => void;
   contratoAtivo: Contrato | null;
 }) {
@@ -699,9 +709,20 @@ function Resultado({
               o que a equipe ganha.
             </p>
           </div>
-          <button type="button" className="botao botao-brasa" onClick={aoVerProposta}>
-            Ver e enviar o PDF
-          </button>
+          <div className="flex flex-wrap items-center gap-4">
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                className="h-5 w-5 accent-[#c4261d]"
+                checked={comPorPessoa}
+                onChange={(e) => aoMudarPorPessoa(e.target.checked)}
+              />
+              Mostrar o preço por pessoa
+            </label>
+            <button type="button" className="botao botao-brasa" onClick={aoVerProposta}>
+              Ver e enviar o PDF
+            </button>
+          </div>
         </div>
       </div>
 
