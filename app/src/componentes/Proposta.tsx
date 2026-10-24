@@ -73,6 +73,11 @@ export default function Proposta({
   */
   const folha = useRef<HTMLElement>(null);
   const [pdf, setPdf] = useState<File | null>(null);
+  /*
+    Tem cliente que só deve ver o valor fechado. Sem o por pessoa, sai também
+    o total de cada linha: com ele e o número de pessoas, a conta volta.
+  */
+  const [comPorPessoa, setComPorPessoa] = useState(true);
   const [erro, setErro] = useState('');
   const [aviso, setAviso] = useState('');
 
@@ -95,7 +100,7 @@ export default function Proposta({
     return () => {
       vivo = false;
     };
-  }, [orcamento, resultado]);
+  }, [orcamento, resultado, comPorPessoa]);
 
   const [comContrato, setComContrato] = useState(true);
   const recado = `Olá${orcamento.cliente ? `, ${orcamento.cliente.trim().split(' ')[0]}` : ''}! Segue o orçamento da Na Grelha com Alan Xavier.${
@@ -145,6 +150,10 @@ export default function Proposta({
           <button type="button" className="botao botao-brasa !min-h-10 !px-4 text-sm" disabled={!pdf} onClick={enviar}>
             {pdf ? 'Enviar PDF no WhatsApp' : erro ? 'PDF indisponível' : 'Preparando o PDF...'}
           </button>
+          <label className="flex items-center gap-2 text-sm">
+            <input type="checkbox" className="h-4 w-4 accent-[#c4261d]" checked={comPorPessoa} onChange={(e) => setComPorPessoa(e.target.checked)} />
+            Mostrar o preço por pessoa
+          </label>
           {linkDoContrato && (
             <label className="flex items-center gap-2 text-sm">
               <input type="checkbox" className="h-4 w-4 accent-[#c4261d]" checked={comContrato} onChange={(e) => setComContrato(e.target.checked)} />
@@ -249,8 +258,12 @@ export default function Proposta({
               <tr>
                 <th>Quem</th>
                 <th className="num">Pessoas</th>
-                <th className="num">Por pessoa</th>
-                <th className="num">Total</th>
+                {comPorPessoa && (
+                  <>
+                    <th className="num">Por pessoa</th>
+                    <th className="num">Total</th>
+                  </>
+                )}
               </tr>
             </thead>
             <tbody>
@@ -258,14 +271,18 @@ export default function Proposta({
                 <tr key={c.rotulo}>
                   <td>{c.rotulo}</td>
                   <td className="num">{inteiro(c.quantidade)}</td>
-                  <td className="num">{real(c.unitario)}</td>
-                  <td className="num">{real(c.total)}</td>
+                  {comPorPessoa && (
+                    <>
+                      <td className="num">{real(c.unitario)}</td>
+                      <td className="num">{real(c.total)}</td>
+                    </>
+                  )}
                 </tr>
               ))}
             </tbody>
             <tfoot>
               <tr>
-                <td colSpan={3}>Valor total</td>
+                <td colSpan={comPorPessoa ? 3 : 1}>Valor total</td>
                 <td className="num">{real(resultado.preco)}</td>
               </tr>
             </tfoot>
