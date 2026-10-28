@@ -55,6 +55,12 @@ export type Item = {
    * Ver `embalagensPara`.
    */
   embalagens?: number[];
+
+  /**
+   * A foto que o cliente vê no link, como caminho no bucket público
+   * `cardapio`. Vazio é sem foto; ausente é banco ainda sem a migração 014.
+   */
+  foto?: string;
 };
 
 export type CustoExtra = {

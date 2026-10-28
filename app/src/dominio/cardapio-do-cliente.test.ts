@@ -286,6 +286,32 @@ describe('cardápio do cliente', () => {
 
     expect(secoes.flatMap((s) => s.pratos.map((p) => p.nome))).toEqual(['Geleias artesanais']);
   });
+
+  it('sobremesa abre doce a doce, com o nome do preparo de subtítulo', () => {
+    const doce = montarCardapio([
+      pub('b18', 'BOLO 18 FATIAS', 'Sobremesa serendipiti', 'extra'),
+      pub('bni', 'Brigadeiro de Ninho', 'Sobremesa serendipiti', 'extra'),
+    ]).find((s) => s.titulo === 'Sobremesa')!;
+
+    expect(doce.pratos.map((p) => [p.nome, p.ids, p.subtitulo])).toEqual([
+      ['Bolo 18 fatias', ['b18'], 'Sobremesa serendipiti'],
+      ['Brigadeiro de Ninho', ['bni'], 'Sobremesa serendipiti'],
+    ]);
+  });
+
+  it('a foto do item vai para o cartão; no prato inteiro, a do primeiro item que tem', () => {
+    const secoes = montarCardapio([
+      { ...pub('chu', 'Churros', 'Sobremesa', 'extra'), foto: 'https://x/churros.jpg' },
+      pub('bej', 'Beijinho', 'Sobremesa', 'extra'),
+      pub('bat', 'Batata', 'MAIONESE', 'guarnicao'),
+      { ...pub('mai', 'Maionese', 'MAIONESE', 'guarnicao'), foto: 'https://x/maionese.jpg' },
+    ]);
+    const foto = (nome: string) => secoes.flatMap((s) => s.pratos).find((p) => p.nome === nome)?.foto;
+
+    expect(foto('Churros')).toBe('https://x/churros.jpg');
+    expect(foto('Beijinho')).toBeUndefined();
+    expect(foto('Maionese')).toBe('https://x/maionese.jpg');
+  });
 });
 
 // ------------------------------------------------------------------ pedido --

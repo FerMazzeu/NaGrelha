@@ -273,18 +273,25 @@ export default function PedidoDoCliente() {
                     {abreParte && (
                       <p className="rotulo col-span-full mt-2 text-dourado/80">{p.subtitulo}</p>
                     )}
+                    {/* Com foto, ela vem em cima do nome: sobremesa se escolhe
+                        pela imagem. A caixinha continua no mesmo lugar. */}
                     <label
-                      className={`cartao flex cursor-pointer items-center gap-3 p-3.5 transition-colors ${
+                      className={`cartao flex cursor-pointer flex-col overflow-hidden transition-colors ${
                         marcado ? 'border-dourado/70 bg-dourado/10' : 'hover:border-dourado/30'
                       }`}
                     >
-                      <input
-                        type="checkbox"
-                        checked={marcado}
-                        onChange={() => alternar(p.chave)}
-                        className="h-5 w-5 shrink-0 accent-[#e3a53f]"
-                      />
-                      <span className={`min-w-0 flex-1 ${marcado ? 'font-semibold text-creme' : ''}`}>{p.nome}</span>
+                      {p.foto && (
+                        <img src={p.foto} alt={p.nome} loading="lazy" className="aspect-[4/3] w-full object-cover" />
+                      )}
+                      <span className="flex items-center gap-3 p-3.5">
+                        <input
+                          type="checkbox"
+                          checked={marcado}
+                          onChange={() => alternar(p.chave)}
+                          className="h-5 w-5 shrink-0 accent-[#e3a53f]"
+                        />
+                        <span className={`min-w-0 flex-1 ${marcado ? 'font-semibold text-creme' : ''}`}>{p.nome}</span>
+                      </span>
                     </label>
                     </Fragment>
                   );

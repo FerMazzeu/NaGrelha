@@ -449,6 +449,8 @@ export const repositorioSupabase: Repositorio = {
       rendimento: Number(l.rendimento),
       preco: Number(l.preco),
       embalagens: paraEmbalagens(l.embalagens),
+      // Sem a migração 014 a coluna não vem, e o item fica sem `foto`.
+      ...(typeof l.foto === 'string' ? { foto: l.foto } : {}),
     }));
   },
 
@@ -464,6 +466,9 @@ export const repositorioSupabase: Repositorio = {
         rendimento: item.rendimento,
         preco: item.preco,
         embalagens: item.embalagens ?? [],
+        // Só manda a foto quando o banco tem a coluna: senão o update inteiro
+        // falharia, e salvar o preço da picanha quebraria por causa da foto.
+        ...(item.foto !== undefined ? { foto: item.foto } : {}),
       })
       .eq('id', item.id);
     if (error) throw error;

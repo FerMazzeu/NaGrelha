@@ -18,6 +18,8 @@ export type ItemPublico = {
   grupo: string;
   categoria: Categoria;
   ordem: number;
+  /** URL pública da foto, já montada. Vazio ou ausente é sem foto. */
+  foto?: string;
 };
 
 /** Uma coisa que o cliente marca. Pode levar vários ingredientes junto. */
@@ -31,6 +33,8 @@ export type Prato = {
    * A tela mostra o subtítulo antes do primeiro prato que o traz.
    */
   subtitulo?: string;
+  /** URL da foto que o cliente vê no cartão. */
+  foto?: string;
 };
 
 export type SecaoDoCardapio = {
@@ -106,7 +110,11 @@ const NAO_E_PRATO = /^(fogo|lou[cç]as?|produtos? de limpeza|limpeza|descart[aá
 const TOPICOS: {
   titulo: string;
   dica: string;
-  preparos: { padrao: RegExp; nome?: string; subtitulo?: string }[];
+  /**
+   * `umAUm`: cada item do preparo vira um prato para marcar, como os cortes do
+   * churrasco. Sem ele o preparo inteiro é um prato só.
+   */
+  preparos: { padrao: RegExp; nome?: string; subtitulo?: string; umAUm?: boolean }[];
 }[] = [
   {
     titulo: 'Cardápio especial',
@@ -131,10 +139,15 @@ const TOPICOS: {
     ],
   },
   {
-    // Também da planilha, e também ainda fora do catálogo.
+    /*
+      Doce a doce. A Érica cadastrou cada sobremesa como item do preparo
+      "Sobremesa serendipiti" (bolo de 18 fatias, brigadeiro de Ninho,
+      churros), e o cliente via uma caixinha só com o nome do preparo, sem
+      saber quais doces vinham. O nome do preparo vira o subtítulo.
+    */
     titulo: 'Sobremesa',
-    dica: 'Para fechar a festa.',
-    preparos: [{ padrao: /sobremesa|confeitaria/i }],
+    dica: 'Marque cada um que você quer.',
+    preparos: [{ padrao: /sobremesa|confeitaria/i, umAUm: true }],
   },
 ];
 
@@ -227,6 +240,15 @@ export function nomeDePrato(texto: string) {
   return base.charAt(0).toLocaleUpperCase('pt-BR') + base.slice(1);
 }
 
+/*
+  Prato inteiro mostra a foto do primeiro item que tiver uma. Não existe
+  cadastro de prato, só de item: a foto do carreteiro mora no arroz ou no
+  bacon, o que a equipe escolher.
+*/
+const fotoDoPreparo = (itens: ItemPublico[]) => itens.find((i) => i.foto)?.foto;
+
+const comFoto = (foto: string | undefined) => (foto ? { foto } : {});
+
 /** Onde o prato inteiro cai, pela categoria que mais aparece nele. */
 function secaoDoPrato(itens: ItemPublico[]): Categoria {
   const conta = new Map<Categoria, number>();
@@ -277,6 +299,16 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
     if (t >= 0) {
       const posicao = TOPICOS[t].preparos.findIndex((r) => r.padrao.test(preparo.trim()));
       const regra = TOPICOS[t].preparos[posicao];
+      if (regra.umAUm) {
+        const subtitulo = regra.subtitulo ?? nomeParaCliente(preparo);
+        for (const i of doPreparo) {
+          doTopico[t].push({
+            posicao,
+            prato: { chave: i.id, nome: nomeParaCliente(i.nome), ids: [i.id], subtitulo, ...comFoto(i.foto) },
+          });
+        }
+        continue;
+      }
       doTopico[t].push({
         posicao,
         prato: {
@@ -284,6 +316,7 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
           nome: regra.nome ?? nomeParaCliente(preparo),
           ids: doPreparo.map((i) => i.id),
           ...(regra.subtitulo ? { subtitulo: regra.subtitulo } : {}),
+          ...comFoto(fotoDoPreparo(doPreparo)),
         },
       });
       continue;
@@ -303,7 +336,12 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
         secao: {
           titulo: nomeParaCliente(preparo),
           dica: 'Marque cada um que você quer.',
-          pratos: deEscolha.map((i) => ({ chave: i.id, nome: nomeParaCliente(i.nome), ids: [i.id, ...junto] })),
+          pratos: deEscolha.map((i) => ({
+            chave: i.id,
+            nome: nomeParaCliente(i.nome),
+            ids: [i.id, ...junto],
+            ...comFoto(i.foto),
+          })),
         },
       });
       continue;
@@ -315,6 +353,7 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
       chave: `p:${preparo}`,
       nome: nomeParaCliente(preparo),
       ids: doPreparo.map((i) => i.id),
+      ...comFoto(fotoDoPreparo(doPreparo)),
     });
   }
 

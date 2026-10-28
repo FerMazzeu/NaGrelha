@@ -6,6 +6,7 @@ import {
 } from '../dominio/cardapio-do-cliente';
 import type { Categoria, FaixaEtaria, Item, Orcamento, Servico, TipoDeEvento } from '../dominio/tipos';
 import { supabase } from '../integrations/supabase/client';
+import { urlDaFoto } from './fotos';
 
 /**
  * O pedido que o cliente monta pelo link.
@@ -32,6 +33,7 @@ export async function lerCardapioPublico(): Promise<ItemPublico[]> {
     grupo: String(i.grupo ?? ''),
     categoria: i.categoria as Categoria,
     ordem: Number(i.ordem ?? 0),
+    foto: urlDaFoto(typeof i.foto === 'string' ? i.foto : ''),
   }));
 }
 

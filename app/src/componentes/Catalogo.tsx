@@ -8,6 +8,8 @@ import type { Categoria, FaixaEtaria, Item, Servico } from '../dominio/tipos';
 import { casaBusca, decimal, inteiro, real } from '../formato';
 import { Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado } from './Campos';
 import { Lupa } from './Icones';
+import { apagarFoto, enviarFoto, urlDaFoto } from '../dados/fotos';
+import { mensagemDe } from '../erro';
 import {
   custoDe,
   descreverCompra,
@@ -343,6 +345,9 @@ function LinhaDeItem({
   return (
     <details className="cartao group">
       <summary className="flex cursor-pointer items-center gap-3 p-3">
+        {item.foto && (
+          <img src={urlDaFoto(item.foto)} alt="" loading="lazy" className="h-10 w-10 shrink-0 rounded-lg object-cover" />
+        )}
         <span className="min-w-0 flex-1">
           <span className="block truncate font-semibold">{rascunho.nome || 'Sem nome'}</span>
           <span className="block truncate text-xs text-fumaca">
@@ -434,6 +439,19 @@ function LinhaDeItem({
               )} por pessoa.`}
         </p>
 
+        {/* Sem a coluna no banco (migração 014) o campo nem aparece. */}
+        {item.foto !== undefined && (
+          <CampoFoto
+            item={item}
+            aoTrocar={async (foto) => {
+              // Grava só a foto, por cima do item salvo: o que a pessoa ainda
+              // está editando nos outros campos continua pendente, como estava.
+              await aoSalvar({ ...item, foto });
+              setRascunho((r) => ({ ...r, foto }));
+            }}
+          />
+        )}
+
         {sujo && (
           <button type="button" className="botao botao-brasa mt-3 w-full" onClick={() => aoSalvar(rascunho)}>
             Salvar alteração
@@ -441,6 +459,83 @@ function LinhaDeItem({
         )}
       </div>
     </details>
+  );
+}
+
+/**
+ * A foto que o cliente vê no link do cardápio.
+ *
+ * Sobremesa se vende pela imagem, nas palavras do Alan, e não pelo nome. Ela
+ * grava na hora de escolher, sem esperar o "Salvar alteração": foto escolhida
+ * e esquecida de salvar é foto que o cliente nunca vê.
+ *
+ * No prato que vem inteiro (maionese, carreteiro), vale a foto de qualquer
+ * item do preparo: o link mostra a primeira que achar.
+ */
+function CampoFoto({ item, aoTrocar }: { item: Item; aoTrocar: (foto: string) => Promise<void> }) {
+  const [enviando, setEnviando] = useState(false);
+  const [erro, setErro] = useState('');
+
+  const trocar = async (arquivo: File | undefined) => {
+    if (!arquivo) return;
+    setEnviando(true);
+    setErro('');
+    const antiga = item.foto;
+    try {
+      await aoTrocar(await enviarFoto(item.id, arquivo));
+      await apagarFoto(antiga);
+    } catch (e) {
+      setErro(mensagemDe(e));
+    } finally {
+      setEnviando(false);
+    }
+  };
+
+  const tirar = async () => {
+    setErro('');
+    const antiga = item.foto;
+    try {
+      await aoTrocar('');
+      await apagarFoto(antiga);
+    } catch (e) {
+      setErro(mensagemDe(e));
+    }
+  };
+
+  return (
+    <div className="mt-3">
+      <p className="rotulo mb-1.5">Foto no cardápio do cliente</p>
+      <div className="flex items-center gap-3">
+        {item.foto ? (
+          <img src={urlDaFoto(item.foto)} alt={item.nome} className="h-20 w-20 shrink-0 rounded-xl object-cover" />
+        ) : (
+          <span className="flex h-20 w-20 shrink-0 items-center justify-center rounded-xl border border-dashed border-borda text-xs text-fumaca">
+            sem foto
+          </span>
+        )}
+        <div className="flex flex-wrap gap-2">
+          <label className={`botao botao-linha cursor-pointer ${enviando ? 'pointer-events-none opacity-60' : ''}`}>
+            {enviando ? 'Enviando...' : item.foto ? 'Trocar foto' : 'Colocar foto'}
+            <input
+              type="file"
+              accept="image/*"
+              className="sr-only"
+              disabled={enviando}
+              onChange={(e) => {
+                trocar(e.target.files?.[0]);
+                e.target.value = '';
+              }}
+            />
+          </label>
+          {item.foto && !enviando && (
+            <button type="button" className="botao botao-linha !text-fumaca" onClick={tirar}>
+              Tirar
+            </button>
+          )}
+        </div>
+      </div>
+      {erro && <p className="mt-2 text-xs text-brasa-clara">{erro}</p>}
+    </div>
   );
 }
 
