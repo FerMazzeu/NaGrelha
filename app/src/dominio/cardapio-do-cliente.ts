@@ -114,7 +114,14 @@ const TOPICOS: {
    * `umAUm`: cada item do preparo vira um prato para marcar, como os cortes do
    * churrasco. Sem ele o preparo inteiro é um prato só.
    */
-  preparos: { padrao: RegExp; nome?: string; subtitulo?: string; umAUm?: boolean }[];
+  preparos: {
+    padrao: RegExp;
+    /** Com `umAUm`, a regra pega só os itens do preparo com este nome. */
+    item?: RegExp;
+    nome?: string;
+    subtitulo?: string;
+    umAUm?: boolean;
+  }[];
 }[] = [
   {
     titulo: 'Cardápio especial',
@@ -140,15 +147,57 @@ const TOPICOS: {
   },
   {
     /*
+      O menu kids. A Érica pediu batata frita, pizza e mini hambúrguer num
+      tópico só, com este nome: cadastrados como extra, eles caíam soltos em
+      Extras, e a pizza vinha logo acima das tortas.
+    */
+    titulo: 'Na Grelha kids',
+    dica: 'O cardápio das crianças.',
+    preparos: [
+      { padrao: /^batata frita/i, nome: 'Batata frita' },
+      { padrao: /^pizza/i, nome: 'Pizza' },
+      { padrao: /^mini hamb/i, nome: 'Mini hambúrguer' },
+    ],
+  },
+  {
+    /*
       Doce a doce. A Érica cadastrou cada sobremesa como item do preparo
       "Sobremesa serendipiti" (bolo de 18 fatias, brigadeiro de Ninho,
       churros), e o cliente via uma caixinha só com o nome do preparo, sem
-      saber quais doces vinham. O nome do preparo vira o subtítulo.
+      saber quais doces vinham.
+
+      As tortas vêm logo depois dos bolos, como ela pediu, e por isso o
+      subtítulo é o tipo de doce, e não o preparo: a serendipiti se divide em
+      bolos e doces, com as tortas no meio. Os brigadeiros especiais são
+      preparo à parte, e vinham em Extras, longe dos outros brigadeiros.
     */
     titulo: 'Sobremesa',
     dica: 'Marque cada um que você quer.',
-    preparos: [{ padrao: /sobremesa|confeitaria/i, umAUm: true }],
+    preparos: [
+      { padrao: /sobremesa|confeitaria/i, item: /^bolo/i, subtitulo: 'Bolos', umAUm: true },
+      { padrao: /^tortas?$/i, subtitulo: 'Tortas', umAUm: true },
+      { padrao: /sobremesa|confeitaria/i, subtitulo: 'Doces', umAUm: true },
+      { padrao: /^brigadeiros?\b/i, umAUm: true },
+    ],
   },
+];
+
+/*
+  Preparos que vão para uma seção que a categoria não daria.
+
+  O feijão tropeiro tem mais tempero (cadastrado como extra) do que feijão, e
+  caía em Extras. A Érica quer junto da comida do almoço, nas guarnições.
+
+  O preparo "Guarnições" é a salada de folhas. Pelo nome igual ao da seção,
+  ele aparecia em Extras como uma caixinha "Guarnições", e confundia.
+
+  O pão de queijo está cadastrado sem preparo, como guarnição, mas na planilha
+  do Alan ele é entrada, depois da batata rústica.
+*/
+const SECAO_DO_PREPARO: { padrao: RegExp; categoria: Categoria; nome?: string }[] = [
+  { padrao: /^feij.o tropeiro/i, categoria: 'guarnicao' },
+  { padrao: /^guarni[cç][oõ]es$/i, categoria: 'guarnicao', nome: 'Salada de folhas' },
+  { padrao: /^p[aã]o de queijo$/i, categoria: 'entrada' },
 ];
 
 /*
@@ -166,6 +215,7 @@ const ORDEM_DOS_PRATOS = [
   /^vinagrete/i,
   /^farofa/i,
   /^tutu/i,
+  /^feij.o tropeiro/i,
   /^maionese/i,
   /^salpic/i,
 ];
@@ -214,6 +264,8 @@ const CORRECOES: Record<string, string> = {
   // O preparo se chama "FRIOS  ENTRADA" no catálogo, com espaço duplo, e
   // aparecia assim como título para o cliente.
   'frios entrada': 'Frios',
+  // "FEIJÀO" está com crase no cadastro.
+  'feijao tropeiro': 'Feijão tropeiro',
   // Maître, e não "metrê", que é como ele aparecia na proposta.
   'organizacao (metre)': 'Organização (maître)',
 };
@@ -279,10 +331,14 @@ const TITULO_DA_SECAO: Partial<Record<Categoria, string>> = {
 export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
   const visiveis = itens.filter((i) => i.categoria !== 'estrutura' && i.categoria !== 'limpeza');
 
-  // Por preparo. Item sem preparo vai para o rótulo da categoria, como no app.
+  /*
+    Por preparo. Item sem preparo é um prato sozinho, com o nome dele. Ele ia
+    para o rótulo da categoria, como no app, e o "Pão de queijo" sem preparo
+    se juntava ao preparo "Guarnições" num prato só.
+  */
   const porPreparo = new Map<string, ItemPublico[]>();
   for (const i of visiveis) {
-    const chave = i.grupo.trim() || ROTULO_CATEGORIA[i.categoria];
+    const chave = i.grupo.trim() || i.nome.trim();
     if (!porPreparo.has(chave)) porPreparo.set(chave, []);
     porPreparo.get(chave)!.push(i);
   }
@@ -300,8 +356,13 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
       const posicao = TOPICOS[t].preparos.findIndex((r) => r.padrao.test(preparo.trim()));
       const regra = TOPICOS[t].preparos[posicao];
       if (regra.umAUm) {
-        const subtitulo = regra.subtitulo ?? nomeParaCliente(preparo);
         for (const i of doPreparo) {
+          // Cada item cai na primeira regra do preparo que aceita o nome dele.
+          const posicao = TOPICOS[t].preparos.findIndex(
+            (r) => r.padrao.test(preparo.trim()) && (!r.item || r.item.test(i.nome.trim())),
+          );
+          if (posicao < 0) continue;
+          const subtitulo = TOPICOS[t].preparos[posicao].subtitulo ?? nomeParaCliente(preparo);
           doTopico[t].push({
             posicao,
             prato: { chave: i.id, nome: nomeParaCliente(i.nome), ids: [i.id], subtitulo, ...comFoto(i.foto) },
@@ -347,11 +408,12 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
       continue;
     }
 
-    const categoria = secaoDoPrato(doPreparo);
+    const forcada = SECAO_DO_PREPARO.find((x) => x.padrao.test(preparo.trim()));
+    const categoria = forcada?.categoria ?? secaoDoPrato(doPreparo);
     if (!inteiros.has(categoria)) inteiros.set(categoria, []);
     inteiros.get(categoria)!.push({
       chave: `p:${preparo}`,
-      nome: nomeParaCliente(preparo),
+      nome: forcada?.nome ?? nomeParaCliente(preparo),
       ids: doPreparo.map((i) => i.id),
       ...comFoto(fotoDoPreparo(doPreparo)),
     });

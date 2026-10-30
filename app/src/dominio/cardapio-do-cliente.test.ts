@@ -287,15 +287,68 @@ describe('cardápio do cliente', () => {
     expect(secoes.flatMap((s) => s.pratos.map((p) => p.nome))).toEqual(['Geleias artesanais']);
   });
 
-  it('sobremesa abre doce a doce, com o nome do preparo de subtítulo', () => {
+  it('sobremesa abre doce a doce: bolos, tortas, doces e os brigadeiros especiais', () => {
     const doce = montarCardapio([
-      pub('b18', 'BOLO 18 FATIAS', 'Sobremesa serendipiti', 'extra'),
-      pub('bni', 'Brigadeiro de Ninho', 'Sobremesa serendipiti', 'extra'),
+      pub('bej', 'BEIJINHO', 'SOBREMESA SERENDIPITI', 'extra'),
+      pub('b18', 'BOLO 18 FATIAS', 'SOBREMESA SERENDIPITI', 'extra'),
+      pub('bni', 'Brigadeiro de Ninho', 'SOBREMESA SERENDIPITI', 'extra'),
+      pub('cri', 'BRIGADEIRO CRISPY', 'BRIGADEIROS ESPECIAIS', 'extra'),
+      pub('tab', 'TORTA DE ABACAXI', 'TORTAS', 'extra'),
     ]).find((s) => s.titulo === 'Sobremesa')!;
 
     expect(doce.pratos.map((p) => [p.nome, p.ids, p.subtitulo])).toEqual([
-      ['Bolo 18 fatias', ['b18'], 'Sobremesa serendipiti'],
-      ['Brigadeiro de Ninho', ['bni'], 'Sobremesa serendipiti'],
+      ['Bolo 18 fatias', ['b18'], 'Bolos'],
+      ['Torta de abacaxi', ['tab'], 'Tortas'],
+      ['Beijinho', ['bej'], 'Doces'],
+      ['Brigadeiro de Ninho', ['bni'], 'Doces'],
+      ['Brigadeiro crispy', ['cri'], 'Brigadeiros especiais'],
+    ]);
+  });
+
+  it('"Na Grelha kids" com batata frita, pizza e mini hambúrguer, antes da sobremesa', () => {
+    const secoes = montarCardapio([
+      pub('mh', 'MINI HAMBURGUER ARTESANAL', 'MINI HAMBURGUER', 'extra'),
+      pub('mhp', 'Mini pão de hamburguer', 'MINI HAMBURGUER', 'extra'),
+      pub('piz', 'PIZZA', 'PIZZA', 'extra'),
+      pub('bf', 'BATATA FRITA', 'BATATA FRITA', 'extra'),
+      pub('tab', 'TORTA DE ABACAXI', 'TORTAS', 'extra'),
+    ]);
+
+    expect(secoes.map((s) => s.titulo)).toEqual(['Na Grelha kids', 'Sobremesa']);
+    expect(secoes[0].pratos.map((p) => [p.nome, p.ids])).toEqual([
+      ['Batata frita', ['bf']],
+      ['Pizza', ['piz']],
+      ['Mini hambúrguer', ['mh', 'mhp']],
+    ]);
+  });
+
+  it('feijão tropeiro e salada de folhas ficam nas guarnições, e não em Extras', () => {
+    const secoes = montarCardapio([
+      pub('fej', 'FEIJÃO', 'FEIJÀO TROPEIRO', 'guarnicao'),
+      pub('fal', 'ALHO', 'FEIJÀO TROPEIRO', 'extra'),
+      pub('fce', 'CEBOLA', 'FEIJÀO TROPEIRO', 'extra'),
+      pub('agr', 'Agrião', 'Guarnições', 'extra'),
+      pub('rep', 'Repolho', 'Guarnições', 'extra'),
+      pub('tut', 'Feijão', 'TUTU A MINEIRA', 'guarnicao'),
+      pub('mai', 'Batata', 'Maionese', 'guarnicao'),
+      pub('gel', 'Goiaba com pimenta', 'Geleias artesanais', 'extra'),
+    ]);
+
+    expect(secoes.map((s) => [s.titulo, s.pratos.map((p) => p.nome)])).toEqual([
+      ['Guarnições', ['Tutu à mineira', 'Feijão tropeiro', 'Maionese', 'Salada de folhas']],
+      ['Extras', ['Geleias artesanais']],
+    ]);
+  });
+
+  it('item sem preparo é um prato sozinho, e não se junta a outro', () => {
+    const guarnicoes = montarCardapio([
+      pub('alf', 'Alface', '', 'guarnicao'),
+      pub('agr', 'Agrião', 'Guarnições', 'extra'),
+    ])[0];
+
+    expect(guarnicoes.pratos.map((p) => [p.nome, p.ids])).toEqual([
+      ['Alface', ['alf']],
+      ['Salada de folhas', ['agr']],
     ]);
   });
 
