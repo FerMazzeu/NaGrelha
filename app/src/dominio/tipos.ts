@@ -161,6 +161,18 @@ export type Servico = {
   percentual: number;
 };
 
+/**
+ * Pacote de serviços que entra de uma vez no orçamento: "Até 50 pessoas" é
+ * churrasqueiro, assistente, cozinha, três garçons, maître, caixa, frete e
+ * imposto. Guarda só o serviço e a quantidade; o valor vem do catálogo na
+ * hora de aplicar.
+ */
+export type GrupoDeEquipe = {
+  id: string;
+  nome: string;
+  itens: { servicoId: string; quantidade: number }[];
+};
+
 /** Uma linha de serviço dentro de um orçamento. */
 export type ServicoDoEvento = {
   id: string;

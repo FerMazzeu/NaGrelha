@@ -2,6 +2,7 @@ import type {
   Conversa,
   Escala,
   FaixaEtaria,
+  GrupoDeEquipe,
   Item,
   Membro,
   MensagemSalva,
@@ -33,6 +34,12 @@ export interface Repositorio {
   salvarServico(servico: Servico): Promise<void>;
   criarServico(servico: Omit<Servico, 'id' | 'faixas'>): Promise<Servico>;
   removerServico(id: string): Promise<void>;
+
+  /** Pacotes de serviços para pôr no orçamento de uma vez. */
+  lerGruposDeEquipe(): Promise<GrupoDeEquipe[]>;
+  criarGrupoDeEquipe(grupo: Omit<GrupoDeEquipe, 'id'>): Promise<GrupoDeEquipe>;
+  salvarGrupoDeEquipe(grupo: GrupoDeEquipe): Promise<void>;
+  removerGrupoDeEquipe(id: string): Promise<void>;
 
   lerFaixasEtarias(): Promise<FaixaEtaria[]>;
   salvarFaixaEtaria(faixa: FaixaEtaria): Promise<void>;

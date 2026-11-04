@@ -3,6 +3,7 @@ import type {
   Apetite,
   Conversa,
   FaixaEtaria,
+  GrupoDeEquipe,
   Item,
   Orcamento,
   Anexo,
@@ -377,6 +378,9 @@ async function salvarEmPartes(id: string, l: LinhasDoOrcamento) {
   if (falhas.length) throw falhas[0];
 }
 
+const linhasDoGrupo = (grupo: Pick<GrupoDeEquipe, 'itens'>) =>
+  grupo.itens.map((i) => ({ servico_id: i.servicoId, quantidade: i.quantidade }));
+
 export const repositorioSupabase: Repositorio = {
   async listarOrcamentos() {
     const { data: eventos, error } = await supabase
@@ -575,6 +579,47 @@ export const repositorioSupabase: Repositorio = {
   async removerServico(id) {
     // desativa: evento antigo referencia este servico
     const { error } = await supabase.from('servicos_catalogo').update({ ativo: false }).eq('id', id);
+    if (error) throw error;
+  },
+
+  async lerGruposDeEquipe(): Promise<GrupoDeEquipe[]> {
+    const { data, error } = await supabase
+      .from('grupos_de_equipe')
+      .select('*')
+      .eq('ativo', true)
+      .order('ordem')
+      .order('nome');
+    if (error) throw error;
+    return (data ?? []).map((g) => ({
+      id: g.id as string,
+      nome: g.nome as string,
+      itens: ((g.itens ?? []) as { servico_id: string; quantidade: number }[]).map((i) => ({
+        servicoId: i.servico_id,
+        quantidade: Number(i.quantidade),
+      })),
+    }));
+  },
+
+  async criarGrupoDeEquipe(grupo) {
+    const { data, error } = await supabase
+      .from('grupos_de_equipe')
+      .insert({ nome: grupo.nome, itens: linhasDoGrupo(grupo) })
+      .select()
+      .single();
+    if (error) throw error;
+    return { ...grupo, id: data.id as string };
+  },
+
+  async salvarGrupoDeEquipe(grupo) {
+    const { error } = await supabase
+      .from('grupos_de_equipe')
+      .update({ nome: grupo.nome, itens: linhasDoGrupo(grupo) })
+      .eq('id', grupo.id);
+    if (error) throw error;
+  },
+
+  async removerGrupoDeEquipe(id) {
+    const { error } = await supabase.from('grupos_de_equipe').update({ ativo: false }).eq('id', id);
     if (error) throw error;
   },
 

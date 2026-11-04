@@ -9,6 +9,7 @@ import {
   type Apetite,
   type Escala,
   type FaixaEtaria,
+  type GrupoDeEquipe,
   type Membro,
   type Orcamento,
   type Servico,
@@ -25,6 +26,7 @@ import { sufixoPorPessoa } from '../dominio/unidade';
 import { linkDoContrato, type Contrato } from '../dados/contratos';
 import ContratoDoEvento from './ContratoDoEvento';
 import { fechadoPorFora } from '../dominio/evento-externo';
+import { aplicarGrupo, itensDoGrupo } from '../dominio/grupos-de-equipe';
 
 const METAS_DE_CARNE = [300, 350, 400, 450, 500];
 
@@ -941,6 +943,132 @@ function EscalaDoEvento({ eventoId, membros }: { eventoId: string; membros: Memb
  * planilha do cliente essa seção sozinha custa mais que os insumos, então
  * esquecer uma linha aqui é o erro mais caro que o app pode deixar acontecer.
  */
+/**
+ * Grupos de equipe: a lista de serviços de sempre, num toque.
+ *
+ * Cada orçamento recebia os mesmos oito ou nove serviços adicionados um a um.
+ * O grupo nasce do próprio orçamento ("Salvar como grupo", com os serviços que
+ * estão nele) e depois entra em qualquer outro.
+ */
+function GruposDeEquipe({
+  servicos,
+  aoAplicar,
+}: {
+  servicos: Orcamento['servicos'];
+  aoAplicar: (grupo: GrupoDeEquipe) => void;
+}) {
+  const [grupos, setGrupos] = useState<GrupoDeEquipe[]>([]);
+  const [nome, setNome] = useState<string | null>(null);
+  const [erro, setErro] = useState('');
+
+  useEffect(() => {
+    let vivo = true;
+    repositorio
+      .lerGruposDeEquipe()
+      .then((g) => vivo && setGrupos(g))
+      .catch((e) => vivo && setErro(mensagemDe(e)));
+    return () => {
+      vivo = false;
+    };
+  }, []);
+
+  const itens = itensDoGrupo(servicos);
+
+  const salvar = async () => {
+    const limpo = (nome ?? '').trim();
+    if (!limpo || !itens.length) return;
+    setErro('');
+    try {
+      // Nome que já existe troca a lista daquele grupo, em vez de criar outro igual.
+      const mesmo = grupos.find((g) => g.nome.trim().toLowerCase() === limpo.toLowerCase());
+      if (mesmo) {
+        await repositorio.salvarGrupoDeEquipe({ ...mesmo, itens });
+        setGrupos(grupos.map((g) => (g.id === mesmo.id ? { ...mesmo, itens } : g)));
+      } else {
+        const novo = await repositorio.criarGrupoDeEquipe({ nome: limpo, itens });
+        setGrupos([...grupos, novo]);
+      }
+      setNome(null);
+    } catch (e) {
+      setErro(mensagemDe(e));
+    }
+  };
+
+  const remover = async (g: GrupoDeEquipe) => {
+    if (!confirm(`Apagar o grupo "${g.nome}"? Os orçamentos que já usaram ele não mudam.`)) return;
+    try {
+      await repositorio.removerGrupoDeEquipe(g.id);
+      setGrupos(grupos.filter((x) => x.id !== g.id));
+    } catch (e) {
+      setErro(mensagemDe(e));
+    }
+  };
+
+  return (
+    <div className="cartao p-4">
+      <p className="rotulo">Grupos de equipe</p>
+      {grupos.length ? (
+        <div className="mt-2 flex flex-wrap gap-2">
+          {grupos.map((g) => (
+            <span key={g.id} className="inline-flex items-stretch overflow-hidden rounded-xl border border-borda">
+              <button
+                type="button"
+                className="px-3 py-2 text-sm font-semibold transition-colors hover:bg-dourado/10 hover:text-dourado"
+                onClick={() => aoAplicar(g)}
+                title="Põe estes serviços no orçamento"
+              >
+                {g.nome} <span className="font-normal text-fumaca">· {inteiro(g.itens.length)}</span>
+              </button>
+              <button
+                type="button"
+                aria-label={`Apagar o grupo ${g.nome}`}
+                className="border-l border-borda px-2.5 text-fumaca transition-colors hover:text-brasa"
+                onClick={() => remover(g)}
+              >
+                ×
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
+        <p className="mt-1 text-sm text-fumaca">
+          Monte a equipe de um evento aqui embaixo e salve como grupo. No próximo orçamento, um toque põe todos os
+          serviços de uma vez.
+        </p>
+      )}
+
+      {nome === null ? (
+        itens.length > 0 && (
+          <button type="button" className="botao botao-linha mt-3 !min-h-9 !px-3 text-sm" onClick={() => setNome('')}>
+            Salvar estes {inteiro(itens.length)} serviços como grupo
+          </button>
+        )
+      ) : (
+        <div className="mt-3 flex gap-2">
+          <div className="min-w-0 flex-1">
+            <CampoTexto
+              valor={nome}
+              aoMudar={setNome}
+              placeholder="Nome do grupo, ex.: Até 50 pessoas"
+              aria-label="Nome do grupo de equipe"
+              autoFocus
+              onKeyDown={(e) => e.key === 'Enter' && salvar()}
+            />
+          </div>
+          <button type="button" className="botao botao-brasa !min-h-11 !px-4 text-sm" disabled={!nome.trim()} onClick={salvar}>
+            Salvar
+          </button>
+          <button type="button" className="botao botao-linha !min-h-11 !px-3 text-sm" onClick={() => setNome(null)}>
+            Cancelar
+          </button>
+        </div>
+      )}
+
+      {erro && <p className="mt-2 text-sm text-brasa-clara">{erro}</p>}
+    </div>
+  );
+}
+
 /** "A tabela vai até 300 convidados. ", ou nada a dizer quando não há teto. */
 function textoDoLimite(limite: number | null) {
   return limite ? `A tabela vai até ${inteiro(limite)} convidados. ` : '';
@@ -1015,6 +1143,22 @@ function ServicosDoEvento({
           </p>
         )}
       </div>
+
+      <GruposDeEquipe
+        servicos={orcamento.servicos}
+        aoAplicar={(grupo) =>
+          mudar({
+            servicos: aplicarGrupo(
+              orcamento.servicos,
+              grupo,
+              disponiveis,
+              convidados,
+              orcamento.tipoEvento,
+              (s) => `novo-${s.id}-${Date.now()}`,
+            ),
+          })
+        }
+      />
 
       <div className="space-y-2">
         {orcamento.servicos.map((s) => (

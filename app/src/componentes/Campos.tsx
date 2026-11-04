@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 export function Campo({ rotulo, dica, children }: { rotulo: string; dica?: string; children: ReactNode }) {
   return (
@@ -113,21 +113,36 @@ export function centavosDoTexto(texto: string): number | null {
 }
 
 /**
- * Campo de dinheiro: sempre com duas casas, preenchido da direita para a
- * esquerda, como na maquininha de cartão.
+ * O que a pessoa digitou no campo de dinheiro, limpo: só número, uma vírgula
+ * e no máximo duas casas depois dela. O ponto do teclado numérico vale como
+ * vírgula quando vem seguido de até dois dígitos ("55.5"); com três, é milhar
+ * ("1.500").
+ */
+export function textoDeDinheiro(texto: string, permitirNegativo = false) {
+  const negativo = permitirNegativo && texto.includes('-');
+  let limpo = texto.replace(/[^\d,.]/g, '');
+  if (!limpo.includes(',')) limpo = limpo.replace(/\.(\d{0,2})$/, ',$1');
+  const [inteira, ...resto] = limpo.split(',');
+  const decimais = resto.join('').replace(/\./g, '').slice(0, 2);
+  const corpo = resto.length ? `${inteira.replace(/\./g, '')},${decimais}` : inteira.replace(/\./g, '');
+  return `${negativo ? '-' : ''}${corpo}`;
+}
+
+/**
+ * Campo de dinheiro: digita-se como se escreve, e ele mostra sempre com duas
+ * casas.
  *
- * Digitar 1, 2, 3, 4, 5 dá 0,01 → 0,12 → 1,23 → 12,34 → 123,45. Ninguém
- * precisa achar a vírgula no teclado do celular, e "15" nunca vira R$ 15,00
- * quando a pessoa queria R$ 0,15 (ou o contrário). Apagar tira o último
- * dígito. Selecionar tudo e digitar começa do zero. Colar "R$ 2.500,00"
- * entende o valor.
+ * "55" é R$ 55,00, "55,9" é R$ 55,90, e ao sair do campo o valor aparece
+ * formatado ("1.234,56"). Colar "R$ 2.500,00" entende o valor.
  *
- * A tecla vira conta sobre o valor, e não edição do texto: com o texto, um
- * clique no meio do número punha o dígito seguinte no lugar errado
- * ("25.000,07" virava "72.500,00").
+ * Era preenchido da direita para a esquerda, como na maquininha de cartão: "55"
+ * dava R$ 0,55. Foi assim que o shoulder ficou no catálogo a R$ 0,55 o quilo, e
+ * os orçamentos de uma semana saíram com a carne quase de graça.
  *
- * `permitirNegativo`: saldo de conta pode ficar no vermelho. O sinal de
- * menos troca o sinal.
+ * Ao entrar no campo o texto todo fica selecionado, então digitar troca o
+ * valor em vez de emendar no que estava.
+ *
+ * `permitirNegativo`: saldo de conta pode ficar no vermelho.
  */
 export function CampoDinheiro({
   valor,
@@ -136,6 +151,8 @@ export function CampoDinheiro({
   permitirNegativo = false,
   destaque = false,
   className = '',
+  onFocus,
+  onBlur,
   ...resto
 }: {
   valor: number;
@@ -146,68 +163,31 @@ export function CampoDinheiro({
   destaque?: boolean;
 } & Omit<React.InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'type'>) {
   const centavos = Math.round((Number.isFinite(valor) ? valor : 0) * 100);
-  const texto = `${centavos < 0 ? '-' : ''}${centavosFormatados.format(Math.abs(centavos) / 100)}`;
-
-  const ref = useRef<HTMLInputElement>(null);
-  // O ouvinte nativo é registrado uma vez; ele lê o valor e a função atuais daqui.
-  const atual = useRef(centavos);
-  atual.current = centavos;
-  const avisar = useRef(aoMudar);
-  avisar.current = aoMudar;
-
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const tudoSelecionado = () => el.selectionStart === 0 && el.selectionEnd === el.value.length && el.value.length > 0;
-    const emitir = (c: number) => avisar.current(Math.max(-TETO_EM_CENTAVOS, Math.min(TETO_EM_CENTAVOS, c)) / 100);
-
-    /*
-      `beforeinput`, e não `keydown`: no teclado do Android a tecla chega como
-      "Unidentified", e só o `beforeinput` diz o que foi digitado. A edição
-      do texto é cancelada e o valor é recalculado.
-    */
-    const antes = (e: InputEvent) => {
-      const c = atual.current;
-      let negativo = c < 0;
-      let abs = tudoSelecionado() ? 0 : Math.abs(c);
-      const tipo = e.inputType;
-
-      if (tipo === 'insertText' || tipo === 'insertReplacementText') {
-        for (const ch of e.data ?? '') {
-          if (/\d/.test(ch) && abs * 10 + Number(ch) <= TETO_EM_CENTAVOS) abs = abs * 10 + Number(ch);
-          else if (ch === '-' && permitirNegativo) negativo = !negativo;
-        }
-        e.preventDefault();
-        emitir(negativo ? -abs : abs);
-      } else if (tipo.startsWith('delete')) {
-        e.preventDefault();
-        if (tudoSelecionado()) emitir(0);
-        else if (tipo === 'deleteContentBackward' || tipo === 'deleteContentForward') emitir((negativo ? -1 : 1) * Math.floor(abs / 10));
-        else emitir(0);
-      } else if (tipo === 'insertFromPaste' || tipo === 'insertFromDrop') {
-        const colado = centavosDoTexto(e.dataTransfer?.getData('text') ?? e.data ?? '');
-        e.preventDefault();
-        if (colado !== null) emitir(permitirNegativo ? colado : Math.abs(colado));
-      }
-    };
-    el.addEventListener('beforeinput', antes);
-    return () => el.removeEventListener('beforeinput', antes);
-  }, [permitirNegativo]);
+  const formatado = `${centavos < 0 ? '-' : ''}${centavosFormatados.format(Math.abs(centavos) / 100)}`;
+  // Enquanto se digita, o texto é o da pessoa; fora do campo, o formatado.
+  const [digitando, setDigitando] = useState<string | null>(null);
 
   return (
     <div className="relative">
       <span className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-xs text-fumaca">R$</span>
       <input
-        ref={ref}
         className={`campo !pl-8 !pr-3 text-right tabular-nums ${sufixo ? '!pr-12' : ''} ${destaque ? '!border-dourado/60' : ''} ${className}`}
-        inputMode="numeric"
-        value={texto}
-        // Plano B, para o teclado que não deixa cancelar a edição (composição
-        // em alguns Android): lê os dígitos do texto como centavos.
+        inputMode="decimal"
+        value={digitando ?? formatado}
+        onFocus={(e) => {
+          setDigitando(formatado);
+          e.currentTarget.select();
+          onFocus?.(e);
+        }}
         onChange={(e) => {
-          const digitos = e.target.value.replace(/\D/g, '').slice(0, 12);
-          const sinal = permitirNegativo && e.target.value.includes('-') ? -1 : 1;
-          avisar.current((sinal * Number(digitos || '0')) / 100);
+          const texto = textoDeDinheiro(e.target.value, permitirNegativo);
+          setDigitando(texto);
+          const c = centavosDoTexto(texto);
+          aoMudar((c === null ? 0 : permitirNegativo ? c : Math.abs(c)) / 100);
+        }}
+        onBlur={(e) => {
+          setDigitando(null);
+          onBlur?.(e);
         }}
         {...resto}
       />
