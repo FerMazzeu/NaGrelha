@@ -72,8 +72,11 @@ const ESCOLHA_UM_A_UM: Categoria[] = ['carne', 'bebida'];
  * qualquer bebida marcada, como o sal grosso vai com o corte: o cliente não
  * tinha caixinha para ela, e todo pedido com refrigerante chegava com água.
  * Foi o que ele achou testando o link com dois amigos.
+ *
+ * Geleias também: cada sabor é uma escolha. Como prato inteiro, o cliente via
+ * uma caixinha "Geleias artesanais" e não sabia que tinha abacaxi na cachaça.
  */
-const PREPARO_DE_ESCOLHA = /\b(frios|bebidas?)\b/i;
+const PREPARO_DE_ESCOLHA = /\b(frios|bebidas?|geleias?)\b/i;
 
 /**
  * Preparos que nunca são escolha do cliente.

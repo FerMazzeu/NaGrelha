@@ -284,7 +284,18 @@ describe('cardápio do cliente', () => {
       pub('x2', 'Guardanapo', 'OUTROS', 'extra'),
     ]);
 
-    expect(secoes.flatMap((s) => s.pratos.map((p) => p.nome))).toEqual(['Geleias artesanais']);
+    expect(secoes.flatMap((s) => s.pratos.map((p) => p.nome))).toEqual(['Geleia']);
+  });
+
+  it('geleias abrem sabor a sabor, para o cliente ver o abacaxi na cachaça', () => {
+    const geleias = montarCardapio([
+      pub('goi', 'Goiaba com pimenta', 'Geleias artesanais', 'extra'),
+      pub('aba', 'Abacaxi na cachaça', 'Geleias artesanais', 'extra'),
+    ]);
+
+    expect(geleias.map((s) => [s.titulo, s.pratos.map((p) => [p.nome, p.ids])])).toEqual([
+      ['Geleias artesanais', [['Goiaba com pimenta', ['goi']], ['Abacaxi na cachaça', ['aba']]]],
+    ]);
   });
 
   it('sobremesa abre doce a doce: bolos, tortas, doces e os brigadeiros especiais', () => {
@@ -336,7 +347,7 @@ describe('cardápio do cliente', () => {
 
     expect(secoes.map((s) => [s.titulo, s.pratos.map((p) => p.nome)])).toEqual([
       ['Guarnições', ['Tutu à mineira', 'Feijão tropeiro', 'Maionese', 'Salada de folhas']],
-      ['Extras', ['Geleias artesanais']],
+      ['Geleias artesanais', ['Goiaba com pimenta']],
     ]);
   });
 
