@@ -153,12 +153,16 @@ const TOPICOS: {
       O menu kids. A Érica pediu batata frita, pizza e mini hambúrguer num
       tópico só, com este nome: cadastrados como extra, eles caíam soltos em
       Extras, e a pizza vinha logo acima das tortas.
+
+      Pizza e mini pizza são escolhas separadas, cada uma com a sua caixinha,
+      estejam no mesmo preparo (PIZZA) ou num preparo próprio. Juntas, marcar
+      "Pizza" levava as duas. Sem subtítulo: no kids ele só repetiria o nome.
     */
     titulo: 'Na Grelha kids',
     dica: 'O cardápio das crianças.',
     preparos: [
       { padrao: /^batata frita/i, nome: 'Batata frita' },
-      { padrao: /^pizza/i, nome: 'Pizza' },
+      { padrao: /^(mini )?pizza/i, umAUm: true, subtitulo: '' },
       { padrao: /^mini hamb/i, nome: 'Mini hambúrguer' },
     ],
   },

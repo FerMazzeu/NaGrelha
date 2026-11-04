@@ -12,7 +12,7 @@ import { converterPedidosPendentes } from './dados/pedidos';
 import { repositorio } from './dados/supabase';
 import type { FaixaEtaria, Item, Membro, Orcamento, Perfil, Servico } from './dominio/tipos';
 import { novoId } from './formato';
-import { orcamentoNovo } from './dominio/orcamento-novo';
+import { comPrecosQueFaltavam, orcamentoNovo } from './dominio/orcamento-novo';
 import { eventoExterno } from './dominio/evento-externo';
 import { useGravacaoEnfileirada } from './gravacao';
 import { supabase } from './integrations/supabase/client';
@@ -171,6 +171,20 @@ export default function App() {
       setErro(mensagemDe(e));
     }
   };
+
+  /*
+    Ao abrir um orçamento, o item que estava sem preço pega o do catálogo. Ver
+    `comPrecosQueFaltavam`: foi a mandioca, marcada com R$ 0 em vários
+    orçamentos depois que o catálogo já tinha o preço.
+  */
+  useEffect(() => {
+    const o = abertoId ? orcamentos.find((x) => x.id === abertoId) : null;
+    if (!o || !catalogo.length) return;
+    const preenchido = comPrecosQueFaltavam(o, catalogo);
+    if (preenchido !== o) salvar({ ...preenchido, atualizadoEm: new Date().toISOString() });
+    // Só ao abrir: depois disso quem manda no orçamento é quem está editando.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [abertoId, catalogo]);
 
   if (verificandoSessao) return <p className="area py-10 text-sm text-fumaca">Carregando...</p>;
   if (!sessao) return <Entrar />;

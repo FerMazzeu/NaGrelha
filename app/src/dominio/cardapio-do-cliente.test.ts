@@ -316,19 +316,22 @@ describe('cardápio do cliente', () => {
     ]);
   });
 
-  it('"Na Grelha kids" com batata frita, pizza e mini hambúrguer, antes da sobremesa', () => {
+  it('"Na Grelha kids" com batata frita, pizza, mini pizza e mini hambúrguer, antes da sobremesa', () => {
     const secoes = montarCardapio([
       pub('mh', 'MINI HAMBURGUER ARTESANAL', 'MINI HAMBURGUER', 'extra'),
       pub('mhp', 'Mini pão de hamburguer', 'MINI HAMBURGUER', 'extra'),
       pub('piz', 'PIZZA', 'PIZZA', 'extra'),
+      pub('mpz', 'MINI PIZZA', 'PIZZA', 'extra'),
       pub('bf', 'BATATA FRITA', 'BATATA FRITA', 'extra'),
       pub('tab', 'TORTA DE ABACAXI', 'TORTAS', 'extra'),
     ]);
 
     expect(secoes.map((s) => s.titulo)).toEqual(['Na Grelha kids', 'Sobremesa']);
+    expect(secoes[0].pratos.every((p) => !p.subtitulo)).toBe(true);
     expect(secoes[0].pratos.map((p) => [p.nome, p.ids])).toEqual([
       ['Batata frita', ['bf']],
       ['Pizza', ['piz']],
+      ['Mini pizza', ['mpz']],
       ['Mini hambúrguer', ['mh', 'mhp']],
     ]);
   });
@@ -349,6 +352,11 @@ describe('cardápio do cliente', () => {
       ['Guarnições', ['Tutu à mineira', 'Feijão tropeiro', 'Maionese', 'Salada de folhas']],
       ['Geleias artesanais', ['Goiaba com pimenta']],
     ]);
+  });
+
+  it('mini pizza em preparo próprio também vai para o kids', () => {
+    const kids = montarCardapio([pub('mpz', 'MINI PIZZA ', 'Mini pizza ', 'extra')]);
+    expect(kids.map((s) => [s.titulo, s.pratos.map((p) => p.nome)])).toEqual([['Na Grelha kids', ['Mini pizza']]]);
   });
 
   it('item sem preparo é um prato sozinho, e não se junta a outro', () => {

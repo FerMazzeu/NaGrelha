@@ -67,3 +67,28 @@ export function orcamentoNovo(
     atualizadoEm: agora,
   };
 }
+
+/**
+ * Preço que faltava no orçamento, puxado do catálogo.
+ *
+ * O orçamento guarda uma cópia do item, e é isso que segura o preço de um
+ * evento fechado. Mas item cadastrado ainda sem preço entra na cópia com zero,
+ * e quando a equipe põe o preço no catálogo o orçamento continua com zero: a
+ * mandioca na manteiga foi marcada em vários orçamentos e não cobrava nada.
+ *
+ * Só o zero é trocado. Preço que já existe no orçamento fica como está, mesmo
+ * diferente do catálogo. E só em rascunho e orçado: evento confirmado não muda
+ * de valor sozinho. Devolve o mesmo objeto quando não há nada a preencher.
+ */
+export function comPrecosQueFaltavam(orcamento: Orcamento, catalogo: Item[]): Orcamento {
+  if (orcamento.situacao !== 'rascunho' && orcamento.situacao !== 'orcado') return orcamento;
+  const preco = new Map(catalogo.map((i) => [i.id, i.preco]));
+  let mudou = false;
+  const itens = orcamento.itens.map((i) => {
+    const doCatalogo = preco.get(i.id) ?? 0;
+    if (i.preco > 0 || doCatalogo <= 0) return i;
+    mudou = true;
+    return { ...i, preco: doCatalogo };
+  });
+  return mudou ? { ...orcamento, itens } : orcamento;
+}
