@@ -20,6 +20,8 @@ export type ItemPublico = {
   ordem: number;
   /** URL pública da foto, já montada. Vazio ou ausente é sem foto. */
   foto?: string;
+  /** A aba do link em que a receita aparece. Vazio é o padrão (`grupoPadraoDoPreparo`). */
+  grupoCardapio?: string;
 };
 
 /** Uma coisa que o cliente marca. Pode levar vários ingredientes junto. */
@@ -73,10 +75,13 @@ const ESCOLHA_UM_A_UM: Categoria[] = ['carne', 'bebida'];
  * tinha caixinha para ela, e todo pedido com refrigerante chegava com água.
  * Foi o que ele achou testando o link com dois amigos.
  *
+ * O Cafezim também: é o café da manhã inteiro num preparo só (pães, bolos,
+ * café, frutas), e como prato inteiro o cliente marcava tudo de uma vez.
+ *
  * Geleias também: cada sabor é uma escolha. Como prato inteiro, o cliente via
  * uma caixinha "Geleias artesanais" e não sabia que tinha abacaxi na cachaça.
  */
-const PREPARO_DE_ESCOLHA = /\b(frios|bebidas?|geleias?)\b/i;
+const PREPARO_DE_ESCOLHA = /\b(frios|bebidas?|geleias?|caf[eé]zi[mn])\b/i;
 
 /**
  * Preparos que nunca são escolha do cliente.
@@ -451,6 +456,63 @@ export function montarCardapio(itens: ItemPublico[]): SecaoDoCardapio[] {
     }
   }
   return secoes;
+}
+
+// ------------------------------------------------------ abas do link --
+
+/*
+  O link em abas: "Churrasco", "Sobremesa" e "Cafezin na Grelha", como o Alan
+  pediu. Antes era uma lista só, e com o café da manhã cadastrado ela ficou
+  longa e misturada, com pão de forma perto de picanha.
+
+  A equipe escolhe a aba de cada receita no catálogo. Receita sem escolha cai
+  no padrão abaixo, para o link já sair arrumado sem ninguém mexer em nada.
+*/
+export const GRUPOS_DO_CARDAPIO = ['Churrasco', 'Sobremesa', 'Cafezin na Grelha'];
+
+/** A aba de uma receita que ninguém escolheu: doce em Sobremesa, Cafezim no Cafezin, o resto no Churrasco. */
+export function grupoPadraoDoPreparo(preparo: string) {
+  const p = preparo.trim();
+  if (/caf[eé]zi[mn]/i.test(p)) return 'Cafezin na Grelha';
+  const sobremesa = TOPICOS.find((t) => t.titulo === 'Sobremesa')!;
+  if (sobremesa.preparos.some((r) => r.padrao.test(p))) return 'Sobremesa';
+  return 'Churrasco';
+}
+
+/**
+ * A aba de cada receita. Vale a primeira escolha que aparecer entre os itens
+ * dela: o ingrediente acrescentado depois nasce sem escolha, e sem isto ele
+ * levaria um pedaço da receita para outra aba.
+ */
+export function grupoDeCadaPreparo(itens: { grupo: string; grupoCardapio?: string }[]) {
+  const escolhido = new Map<string, string>();
+  for (const i of itens) {
+    const g = i.grupoCardapio?.trim();
+    if (g && !escolhido.has(i.grupo.trim())) escolhido.set(i.grupo.trim(), g);
+  }
+  return (preparo: string) => escolhido.get(preparo.trim()) ?? grupoPadraoDoPreparo(preparo);
+}
+
+export type GrupoDoCardapio = { titulo: string; secoes: SecaoDoCardapio[] };
+
+/** O cardápio dividido nas abas do link, na ordem de `GRUPOS_DO_CARDAPIO`; aba vazia não aparece. */
+export function montarCardapioPorGrupo(itens: ItemPublico[]): GrupoDoCardapio[] {
+  const grupoDe = grupoDeCadaPreparo(itens);
+  const porGrupo = new Map<string, ItemPublico[]>();
+  for (const i of itens) {
+    const g = grupoDe(i.grupo);
+    if (!porGrupo.has(g)) porGrupo.set(g, []);
+    porGrupo.get(g)!.push(i);
+  }
+  // Os três conhecidos primeiro; aba criada pela equipe vem depois, em ordem alfabética.
+  const posicao = (g: string) => {
+    const i = GRUPOS_DO_CARDAPIO.indexOf(g);
+    return i < 0 ? GRUPOS_DO_CARDAPIO.length : i;
+  };
+  return [...porGrupo.keys()]
+    .sort((a, b) => posicao(a) - posicao(b) || a.localeCompare(b, 'pt-BR'))
+    .map((titulo) => ({ titulo, secoes: montarCardapio(porGrupo.get(titulo)!) }))
+    .filter((g) => g.secoes.length > 0);
 }
 
 // ----------------------------------------------------------------- louça --

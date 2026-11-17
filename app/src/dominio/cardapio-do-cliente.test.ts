@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
   loucaDoRecado,
+  grupoPadraoDoPreparo,
   montarCardapio,
+  montarCardapioPorGrupo,
   nomeDePrato,
   pedidoParaOrcamento,
   recadoComLouca,
@@ -438,6 +440,63 @@ const PEDIDO: Pedido = {
   itens: ['pic', 'fra', 'fra'],
   criadoEm: '2026-10-04T15:00:00Z',
 };
+
+describe('abas do link: Churrasco, Sobremesa e Cafezin na Grelha', () => {
+  const CARDAPIO = [
+    pub('pic', 'Picanha', 'Carnes para churrasco', 'carne'),
+    pub('b18', 'BOLO 18 FATIAS', 'SOBREMESA /CONFEITARIA SERENDIPITI', 'extra'),
+    pub('tab', 'TORTA DE ABACAXI', 'TORTAS', 'extra'),
+    pub('caf', 'Café', 'Cafezim com o Na Grelha', 'extra'),
+    pub('pao', 'Pão de queijo', 'Cafezim com o Na Grelha', 'entrada'),
+    pub('chp', 'Chopp', 'BEBIDAS', 'bebida'),
+  ];
+
+  it('sem ninguém escolher, cada receita cai na aba do padrão, na ordem certa', () => {
+    const abas = montarCardapioPorGrupo(CARDAPIO);
+
+    expect(abas.map((a) => [a.titulo, a.secoes.map((s) => s.titulo)])).toEqual([
+      ['Churrasco', ['Carnes para churrasco', 'Bebidas']],
+      ['Sobremesa', ['Sobremesa']],
+      ['Cafezin na Grelha', ['Cafezim com o Na Grelha']],
+    ]);
+  });
+
+  it('o Cafezim abre item a item, e não é uma caixinha com o café da manhã inteiro', () => {
+    const cafe = montarCardapioPorGrupo(CARDAPIO).find((a) => a.titulo === 'Cafezin na Grelha')!;
+    expect(cafe.secoes[0].pratos.map((p) => [p.nome, p.ids])).toEqual([
+      ['Café', ['caf']],
+      ['Pão de queijo', ['pao']],
+    ]);
+  });
+
+  it('a escolha do catálogo manda, e vale para a receita inteira', () => {
+    const abas = montarCardapioPorGrupo([
+      ...CARDAPIO,
+      { ...pub('suc', 'Suco', 'Sucos naturais', 'bebida'), grupoCardapio: 'Cafezin na Grelha' },
+      // Ingrediente acrescentado depois, ainda sem escolha: vai junto com a receita.
+      pub('sla', 'Suco de laranja', 'Sucos naturais', 'bebida'),
+    ]);
+    const cafe = abas.find((a) => a.titulo === 'Cafezin na Grelha')!;
+
+    expect(cafe.secoes.map((s) => s.titulo)).toContain('Sucos naturais');
+    expect(abas.find((a) => a.titulo === 'Churrasco')!.secoes.map((s) => s.titulo)).not.toContain('Sucos naturais');
+  });
+
+  it('aba criada pela equipe aparece depois das três conhecidas', () => {
+    const abas = montarCardapioPorGrupo([
+      { ...pub('cai', 'Limão', 'Caipirinha', 'bebida'), grupoCardapio: 'Bar' },
+      ...CARDAPIO,
+    ]);
+    expect(abas.map((a) => a.titulo)).toEqual(['Churrasco', 'Sobremesa', 'Cafezin na Grelha', 'Bar']);
+  });
+
+  it('o padrão pelo nome do preparo', () => {
+    expect(grupoPadraoDoPreparo('BRIGADEIROS ESPECIAIS')).toBe('Sobremesa');
+    expect(grupoPadraoDoPreparo('TORTAS')).toBe('Sobremesa');
+    expect(grupoPadraoDoPreparo('Cafezim com o Na Grelha')).toBe('Cafezin na Grelha');
+    expect(grupoPadraoDoPreparo('Maionese')).toBe('Churrasco');
+  });
+});
 
 describe('pedido do link vira rascunho', () => {
   const o = pedidoParaOrcamento(PEDIDO, CATALOGO, SERVICOS, FAIXAS);

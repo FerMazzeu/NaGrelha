@@ -1,7 +1,13 @@
 import { Fragment, useEffect, useMemo, useState } from 'react';
 import { Campo, CampoNumero, CampoTexto, Segmentado } from '../componentes/Campos';
 import { lerCardapioPublico, lerFaixasPublicas, enviarPedido, type FaixaPublica } from '../dados/pedidos';
-import { LOUCAS, montarCardapio, recadoComLouca, type Louca, type SecaoDoCardapio } from '../dominio/cardapio-do-cliente';
+import {
+  LOUCAS,
+  montarCardapioPorGrupo,
+  recadoComLouca,
+  type GrupoDoCardapio,
+  type Louca,
+} from '../dominio/cardapio-do-cliente';
 import type { TipoDeEvento } from '../dominio/tipos';
 import { inteiro } from '../formato';
 import { mensagemDe } from '../erro';
@@ -30,7 +36,8 @@ const hoje = () => new Date().toISOString().slice(0, 10);
 
 export default function PedidoDoCliente() {
   const [etapa, setEtapa] = useState<Etapa>('carregando');
-  const [secoes, setSecoes] = useState<SecaoDoCardapio[]>([]);
+  const [grupos, setGrupos] = useState<GrupoDoCardapio[]>([]);
+  const [aba, setAba] = useState(0);
   const [faixas, setFaixas] = useState<FaixaPublica[]>([]);
   const [erroDeEnvio, setErroDeEnvio] = useState('');
   const [tentou, setTentou] = useState(false);
@@ -50,7 +57,7 @@ export default function PedidoDoCliente() {
   useEffect(() => {
     Promise.all([lerCardapioPublico(), lerFaixasPublicas()])
       .then(([itens, fx]) => {
-        setSecoes(montarCardapio(itens));
+        setGrupos(montarCardapioPorGrupo(itens));
         setFaixas(fx);
         setEtapa('preenchendo');
       })
@@ -60,7 +67,12 @@ export default function PedidoDoCliente() {
       });
   }, []);
 
-  const pratos = useMemo(() => secoes.flatMap((s) => s.pratos), [secoes]);
+  // Todos os pratos, de todas as abas: o que foi marcado numa aba continua
+  // marcado quando o cliente passa para outra, e vai junto no pedido.
+  const pratos = useMemo(() => grupos.flatMap((g) => g.secoes.flatMap((s) => s.pratos)), [grupos]);
+  const secoes = grupos[aba]?.secoes ?? [];
+  const marcadosNaAba = (g: GrupoDoCardapio) =>
+    g.secoes.reduce((n, s) => n + s.pratos.filter((p) => marcados.has(p.chave)).length, 0);
 
   const faltas = [
     cliente.trim().length < 2 && 'seu nome',
@@ -252,6 +264,39 @@ export default function PedidoDoCliente() {
         </section>
 
         {/* ------------------------------------------------------ cardápio */}
+        {/*
+          As abas: Churrasco, Sobremesa, Cafezin na Grelha. Com uma aba só,
+          elas nem aparecem. Ficam presas no topo enquanto o cliente rola, para
+          trocar de cardápio sem voltar lá em cima.
+        */}
+        {grupos.length > 1 && (
+          <div className="sticky top-0 z-10 -mx-4 bg-carvao/95 px-4 py-3 backdrop-blur md:-mx-6 md:px-6">
+            <p className="rotulo mb-2">Escolha o cardápio</p>
+            <div className="flex gap-2 overflow-x-auto rolagem-discreta" role="tablist">
+              {grupos.map((g, i) => {
+                const n = marcadosNaAba(g);
+                return (
+                  <button
+                    key={g.titulo}
+                    type="button"
+                    role="tab"
+                    aria-selected={aba === i}
+                    onClick={() => setAba(i)}
+                    className={`shrink-0 rounded-xl border px-4 py-2.5 text-sm font-semibold transition-colors ${
+                      aba === i
+                        ? 'border-dourado bg-dourado/15 text-dourado'
+                        : 'border-borda text-fumaca hover:border-dourado/40 hover:text-creme'
+                    }`}
+                  >
+                    {g.titulo}
+                    {n > 0 && <span className="ml-1.5 rounded-full bg-brasa px-1.5 text-xs text-creme">{inteiro(n)}</span>}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
         {secoes.map((secao) => {
           const marcadosAqui = secao.pratos.filter((p) => marcados.has(p.chave)).length;
           return (

@@ -455,6 +455,7 @@ export const repositorioSupabase: Repositorio = {
       embalagens: paraEmbalagens(l.embalagens),
       // Sem a migração 014 a coluna não vem, e o item fica sem `foto`.
       ...(typeof l.foto === 'string' ? { foto: l.foto } : {}),
+      ...(typeof l.grupo_cardapio === 'string' ? { grupoCardapio: l.grupo_cardapio } : {}),
     }));
   },
 
@@ -473,6 +474,8 @@ export const repositorioSupabase: Repositorio = {
         // Só manda a foto quando o banco tem a coluna: senão o update inteiro
         // falharia, e salvar o preço da picanha quebraria por causa da foto.
         ...(item.foto !== undefined ? { foto: item.foto } : {}),
+        // Pela mesma razão: só com a migração 016.
+        ...(item.grupoCardapio !== undefined ? { grupo_cardapio: item.grupoCardapio || null } : {}),
       })
       .eq('id', item.id);
     if (error) throw error;
@@ -490,6 +493,7 @@ export const repositorioSupabase: Repositorio = {
         rendimento: item.rendimento,
         preco: item.preco,
         embalagens: item.embalagens ?? [],
+        ...(item.grupoCardapio ? { grupo_cardapio: item.grupoCardapio } : {}),
         ordem: 999,
       })
       .select()

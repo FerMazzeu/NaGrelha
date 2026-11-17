@@ -34,6 +34,7 @@ export async function lerCardapioPublico(): Promise<ItemPublico[]> {
     categoria: i.categoria as Categoria,
     ordem: Number(i.ordem ?? 0),
     foto: urlDaFoto(typeof i.foto === 'string' ? i.foto : ''),
+    grupoCardapio: typeof i.grupo_cardapio === 'string' ? i.grupo_cardapio : '',
   }));
 }
 

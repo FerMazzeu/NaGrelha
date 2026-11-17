@@ -61,6 +61,11 @@ export type Item = {
    * `cardapio`. Vazio é sem foto; ausente é banco ainda sem a migração 014.
    */
   foto?: string;
+  /**
+   * A aba do link do cliente em que a receita aparece ("Churrasco",
+   * "Sobremesa", "Cafezin na Grelha"). Vazio é o padrão pelo nome do preparo.
+   */
+  grupoCardapio?: string;
 };
 
 export type CustoExtra = {

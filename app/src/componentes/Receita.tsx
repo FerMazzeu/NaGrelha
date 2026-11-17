@@ -6,6 +6,8 @@ import { Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado } from './Cam
 import { Lupa } from './Icones';
 import { custoDe, rotuloUnidade, sufixoPorPessoa } from '../dominio/unidade';
 
+const NOVA_ABA = '__nova__';
+
 /**
  * Cabeçalho de uma receita, com o que ela custa e como acrescentar ingrediente.
  *
@@ -24,6 +26,9 @@ export default function Receita({
   catalogo,
   aoCriar,
   aoRenomear,
+  abaDoLink,
+  abasDoLink,
+  aoMudarAbaDoLink,
   children,
 }: {
   preparo: string;
@@ -32,6 +37,10 @@ export default function Receita({
   catalogo: Item[];
   aoCriar: (item: Omit<Item, 'id'>) => Promise<void>;
   aoRenomear: (de: string, para: string) => Promise<void>;
+  /** Em que aba do link do cliente a receita aparece, e as abas que existem. */
+  abaDoLink: string;
+  abasDoLink: string[];
+  aoMudarAbaDoLink: (aba: string) => Promise<void>;
   /** As linhas de item, montadas por quem chama: elas já sabem salvar e apagar. */
   children: React.ReactNode;
 }) {
@@ -106,6 +115,32 @@ export default function Receita({
             <strong className="text-creme">{real(custo)}</strong> por pessoa
           </span>
         </div>
+      )}
+
+      {!renomeando && (
+        <label className="mt-2 flex items-center gap-2 text-xs text-fumaca">
+          Aparece no link do cliente em
+          <select
+            className="campo !min-h-8 !w-auto !py-1 text-xs"
+            value={abaDoLink}
+            onChange={async (e) => {
+              let aba = e.target.value;
+              if (aba === NOVA_ABA) {
+                aba = (prompt('Nome da nova aba do link, ex.: Bar') ?? '').trim();
+                if (!aba) return;
+              }
+              await aoMudarAbaDoLink(aba);
+            }}
+            aria-label={`Aba do link de ${preparo}`}
+          >
+            {abasDoLink.map((a) => (
+              <option key={a} value={a}>
+                {a}
+              </option>
+            ))}
+            <option value={NOVA_ABA}>+ Nova aba…</option>
+          </select>
+        </label>
       )}
 
       <div className="mt-3 space-y-3">{children}</div>

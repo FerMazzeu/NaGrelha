@@ -4,6 +4,7 @@ import Receita from './Receita';
 import ImportarCatalogo from './ImportarCatalogo';
 import TabelasDeCache from './TabelasDeCache';
 import { agruparPorPreparo, CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
+import { GRUPOS_DO_CARDAPIO, grupoDeCadaPreparo } from '../dominio/cardapio-do-cliente';
 import type { Categoria, FaixaEtaria, Item, Servico } from '../dominio/tipos';
 import { casaBusca, decimal, inteiro, real } from '../formato';
 import { Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado } from './Campos';
@@ -78,6 +79,22 @@ export default function Catalogo({
   const renomearPreparo = async (de: string, para: string) => {
     for (const item of itens.filter((i) => i.grupo === de)) {
       await aoSalvar({ ...item, grupo: para });
+    }
+  };
+
+  /*
+    A aba do link do cliente em que a receita aparece. Como o nome, ela é da
+    receita inteira, e por isso vai gravada em todos os itens dela.
+  */
+  const grupoDe = useMemo(() => grupoDeCadaPreparo(itens), [itens]);
+  const abasDoLink = useMemo(() => {
+    const criadas = itens.map((i) => i.grupoCardapio?.trim() ?? '').filter((g) => g && !GRUPOS_DO_CARDAPIO.includes(g));
+    return [...GRUPOS_DO_CARDAPIO, ...[...new Set(criadas)].sort((a, b) => a.localeCompare(b, 'pt-BR'))];
+  }, [itens]);
+  const mudarAbaDoLink = async (preparo: string, aba: string) => {
+    // Item sem preparo aparece aqui sob o nome da categoria, e vai junto.
+    for (const item of itens.filter((i) => (i.grupo || ROTULO_CATEGORIA[i.categoria]) === preparo)) {
+      await aoSalvar({ ...item, grupoCardapio: aba });
     }
   };
 
@@ -293,6 +310,9 @@ export default function Catalogo({
             catalogo={itens}
             aoCriar={aoCriar}
             aoRenomear={renomearPreparo}
+            abaDoLink={grupoDe(preparo)}
+            abasDoLink={abasDoLink}
+            aoMudarAbaDoLink={(aba) => mudarAbaDoLink(preparo, aba)}
           >
             {/* `items-start`: sem ele, abrir uma linha estica o cartão vizinho
                 na mesma altura, e a coluna da direita fica com um vão vazio. */}
