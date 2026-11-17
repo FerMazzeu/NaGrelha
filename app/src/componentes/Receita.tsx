@@ -6,7 +6,53 @@ import { Campo, CampoDinheiro, CampoNumero, CampoTexto, Segmentado } from './Cam
 import { Lupa } from './Icones';
 import { custoDe, rotuloUnidade, sufixoPorPessoa } from '../dominio/unidade';
 
-const NOVA_ABA = '__nova__';
+/**
+ * Os botões das abas do link (Churrasco, Sobremesa, Cafezin na Grelha e as
+ * criadas pela equipe), com "+ Nova aba" no fim. Usado na receita e no
+ * formulário de receita nova.
+ */
+export function AbasDoLink({
+  valor,
+  opcoes,
+  aoEscolher,
+  rotulo,
+}: {
+  valor: string;
+  opcoes: string[];
+  aoEscolher: (aba: string) => void | Promise<void>;
+  rotulo: string;
+}) {
+  return (
+    <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={`Aba do link de ${rotulo}`}>
+      {opcoes.map((a) => (
+        <button
+          key={a}
+          type="button"
+          role="radio"
+          aria-checked={valor === a}
+          onClick={() => valor !== a && aoEscolher(a)}
+          className={`rounded-lg border px-3 py-1.5 text-sm font-semibold transition-colors ${
+            valor === a
+              ? 'border-dourado bg-dourado/15 text-dourado'
+              : 'border-borda text-fumaca hover:border-dourado/40 hover:text-creme'
+          }`}
+        >
+          {a}
+        </button>
+      ))}
+      <button
+        type="button"
+        className="rounded-lg border border-dashed border-borda px-3 py-1.5 text-sm text-fumaca transition-colors hover:border-dourado/40 hover:text-creme"
+        onClick={() => {
+          const aba = (prompt('Nome da nova aba do link, ex.: Bar') ?? '').trim();
+          if (aba) aoEscolher(aba);
+        }}
+      >
+        + Nova aba
+      </button>
+    </div>
+  );
+}
 
 /**
  * Cabeçalho de uma receita, com o que ela custa e como acrescentar ingrediente.
@@ -117,30 +163,15 @@ export default function Receita({
         </div>
       )}
 
+      {/*
+        A aba do link do cliente, à vista em cada receita. Era um seletor
+        miúdo no canto, e a equipe achou que não dava para escolher.
+      */}
       {!renomeando && (
-        <label className="mt-2 flex items-center gap-2 text-xs text-fumaca">
-          Aparece no link do cliente em
-          <select
-            className="campo !min-h-8 !w-auto !py-1 text-xs"
-            value={abaDoLink}
-            onChange={async (e) => {
-              let aba = e.target.value;
-              if (aba === NOVA_ABA) {
-                aba = (prompt('Nome da nova aba do link, ex.: Bar') ?? '').trim();
-                if (!aba) return;
-              }
-              await aoMudarAbaDoLink(aba);
-            }}
-            aria-label={`Aba do link de ${preparo}`}
-          >
-            {abasDoLink.map((a) => (
-              <option key={a} value={a}>
-                {a}
-              </option>
-            ))}
-            <option value={NOVA_ABA}>+ Nova aba…</option>
-          </select>
-        </label>
+        <div className="mt-3 rounded-xl border border-borda bg-carvao-3/50 p-2.5">
+          <p className="rotulo mb-1.5">Aba no link do cliente</p>
+          <AbasDoLink valor={abaDoLink} opcoes={abasDoLink} aoEscolher={aoMudarAbaDoLink} rotulo={preparo} />
+        </div>
       )}
 
       <div className="mt-3 space-y-3">{children}</div>

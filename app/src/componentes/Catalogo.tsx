@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import FaixasEtarias from './FaixasEtarias';
-import Receita from './Receita';
+import Receita, { AbasDoLink } from './Receita';
 import ImportarCatalogo from './ImportarCatalogo';
 import TabelasDeCache from './TabelasDeCache';
 import { agruparPorPreparo, CATEGORIAS, ROTULO_CATEGORIA } from '../dominio/catalogo';
@@ -101,6 +101,10 @@ export default function Catalogo({
   const criar = async () => {
     if (!novo.nome.trim()) return;
     await aoCriar(novo);
+    // Aba escolhida para um preparo que já existe vale para a receita inteira.
+    if (novo.grupoCardapio && novo.grupo.trim() && novo.grupoCardapio !== grupoDe(novo.grupo)) {
+      await mudarAbaDoLink(novo.grupo, novo.grupoCardapio);
+    }
     setNovo(VAZIO);
     setAbrindo(false);
   };
@@ -204,6 +208,20 @@ export default function Catalogo({
               ))}
             </datalist>
           </Campo>
+
+          {/* `div`, e não `Campo`: o `label` do Campo apertaria o primeiro botão ao tocar no rótulo. */}
+          <div>
+            <span className="rotulo mb-1.5">Aba no link do cliente</span>
+            <AbasDoLink
+              valor={novo.grupoCardapio || grupoDe(novo.grupo)}
+              opcoes={[...new Set([...abasDoLink, ...(novo.grupoCardapio ? [novo.grupoCardapio] : [])])]}
+              aoEscolher={(aba) => setNovo({ ...novo, grupoCardapio: aba })}
+              rotulo={novo.grupo || 'a receita nova'}
+            />
+            <span className="mt-1 block text-xs text-fumaca">
+              Em qual cardápio o cliente vê esta receita. Vale para a receita inteira.
+            </span>
+          </div>
 
           <Campo rotulo="Categoria">
             <Segmentado<Categoria>
