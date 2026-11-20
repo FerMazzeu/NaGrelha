@@ -318,6 +318,22 @@ export default function Catalogo({
         </p>
       )}
 
+      {!busca && (
+        <AbasCriadas
+          itens={itens}
+          aoRenomear={async (de, para) => {
+            for (const item of itens.filter((i) => i.grupoCardapio?.trim() === de)) {
+              await aoSalvar({ ...item, grupoCardapio: para });
+            }
+          }}
+          aoApagar={async (aba) => {
+            for (const item of itens.filter((i) => i.grupoCardapio?.trim() === aba)) {
+              await aoSalvar({ ...item, grupoCardapio: '' });
+            }
+          }}
+        />
+      )}
+
       {/* Por preparo, nao por categoria: e assim que a compra acontece. */}
       <div className="mt-6 space-y-5">
         {agruparPorPreparo(encontrados).map(([preparo, doPreparo]) => (
@@ -345,6 +361,94 @@ export default function Catalogo({
         </>
       )}
     </div>
+  );
+}
+
+/**
+ * As abas que a equipe criou no link ("Ilha gastronomica", "Na grelha kids"),
+ * com renomear e apagar.
+ *
+ * Aba não é cadastro: ela existe enquanto alguma receita está nela. Sem isto,
+ * uma aba criada com nome errado ("NA GRELHA KITS") só saía mudando receita
+ * por receita para outra aba, e o Alan pediu para editar.
+ *
+ * As três de sempre (Churrasco, Sobremesa, Cafezin na Grelha) não entram:
+ * elas são o padrão, e existem mesmo sem receita escolhida.
+ */
+function AbasCriadas({
+  itens,
+  aoRenomear,
+  aoApagar,
+}: {
+  itens: Item[];
+  aoRenomear: (de: string, para: string) => Promise<void>;
+  aoApagar: (aba: string) => Promise<void>;
+}) {
+  const [gravando, setGravando] = useState<string | null>(null);
+
+  const abas = useMemo(() => {
+    const receitas = new Map<string, Set<string>>();
+    for (const i of itens) {
+      const aba = i.grupoCardapio?.trim();
+      if (!aba || GRUPOS_DO_CARDAPIO.includes(aba)) continue;
+      if (!receitas.has(aba)) receitas.set(aba, new Set());
+      receitas.get(aba)!.add(i.grupo || ROTULO_CATEGORIA[i.categoria]);
+    }
+    return [...receitas.entries()].sort((a, b) => a[0].localeCompare(b[0], 'pt-BR'));
+  }, [itens]);
+
+  if (!abas.length) return null;
+
+  const fazer = async (aba: string, acao: () => Promise<void>) => {
+    setGravando(aba);
+    try {
+      await acao();
+    } finally {
+      setGravando(null);
+    }
+  };
+
+  return (
+    <section className="cartao mt-6 p-4">
+      <p className="rotulo">Abas criadas no link do cliente</p>
+      <p className="mt-1 text-xs text-fumaca">
+        Vêm depois de Churrasco, Sobremesa e Cafezin na Grelha. Apagar uma aba devolve as receitas dela para a aba de
+        sempre.
+      </p>
+      <div className="mt-3 space-y-2">
+        {abas.map(([aba, receitas]) => (
+          <div key={aba} className="flex flex-wrap items-center gap-2 rounded-xl border border-borda p-3">
+            <div className="min-w-0 flex-1">
+              <p className="font-semibold">{aba}</p>
+              <p className="truncate text-xs text-fumaca">{[...receitas].join(', ')}</p>
+            </div>
+            <button
+              type="button"
+              className="botao botao-linha !min-h-9 !px-3 text-sm"
+              disabled={gravando !== null}
+              onClick={() => {
+                const para = (prompt(`Novo nome para a aba "${aba}"`, aba) ?? '').trim();
+                if (para && para !== aba) void fazer(aba, () => aoRenomear(aba, para));
+              }}
+            >
+              Renomear
+            </button>
+            <button
+              type="button"
+              className="botao botao-linha !min-h-9 !px-3 text-sm !text-fumaca hover:!border-brasa hover:!text-brasa-clara"
+              disabled={gravando !== null}
+              onClick={() => {
+                if (confirm(`Apagar a aba "${aba}"? As receitas dela (${receitas.size}) voltam para a aba de sempre.`)) {
+                  void fazer(aba, () => aoApagar(aba));
+                }
+              }}
+            >
+              {gravando === aba ? 'Gravando...' : 'Apagar'}
+            </button>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }
 
